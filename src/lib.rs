@@ -6,4 +6,5 @@
 
 pub mod event;
 pub mod harness;
+pub mod rules;
 pub mod shell;

@@ -1,0 +1,208 @@
+//! Rules from `rules/*.toml`: their schema and loading.
+//!
+//! This module owns the on-disk rule format, which the rules files in the
+//! agents repo share with ahok. Turning events into decisions builds on it;
+//! finding the rules directory belongs to the caller.
+
+#![expect(
+  dead_code,
+  reason = "the evaluator reads rule fields as each rule kind is wired up"
+)]
+
+use std::fs;
+use std::io;
+use std::path;
+
+use toml;
+
+/// Why the rules directory could not be loaded.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+  /// The directory or a file in it could not be read.
+  #[error(transparent)]
+  Io(#[from] io::Error),
+  /// A rules file is not valid TOML or does not match the schema.
+  #[error("{}: {source}", path.display())]
+  Parse {
+    /// The offending file.
+    path: path::PathBuf,
+    /// What the parser rejected.
+    source: toml::de::Error,
+  },
+}
+
+/// One `[[rule]]` table, exactly as written in a rules file.
+#[derive(Debug, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Rule {
+  id: String,
+  event: Event,
+  tool: Option<Tools>,
+  #[serde(default)]
+  match_commands: Vec<String>,
+  match_pattern: Option<String>,
+  #[serde(default)]
+  match_files: Vec<String>,
+  decision: Option<Decision>,
+  reason: Option<String>,
+  os: Option<String>,
+  require_skill: Option<String>,
+  #[serde(default)]
+  once_per_session: bool,
+  hook: Option<GitHook>,
+  pattern: Option<String>,
+  allow_tag: Option<String>,
+  max_net_lines: Option<u32>,
+  #[serde(default)]
+  exclude_globs: Vec<String>,
+  allow_env: Option<String>,
+  skip_if_env: Option<String>,
+  max_file_bytes: Option<u64>,
+  #[serde(default)]
+  protected_branches: Vec<String>,
+  fail: Option<Fail>,
+}
+
+/// The lifecycle point a rule applies to.
+#[derive(Debug, serde::Deserialize)]
+enum Event {
+  /// Checked before a tool call, from `ahok hook`.
+  PreToolUse,
+  /// Checked from a git hook, by `ahok git`.
+  GitHook,
+}
+
+/// The tools a `PreToolUse` rule applies to: `"shell"`, `"edit"`, or a raw
+/// harness tool name, given as one string or a list.
+#[derive(Debug, serde::Deserialize)]
+#[serde(untagged)]
+enum Tools {
+  /// A single tool.
+  One(String),
+  /// Any of several tools.
+  Many(Vec<String>),
+}
+
+/// What happens to a call a rule matches.
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum Decision {
+  /// Block the call and tell the agent why.
+  Deny,
+  /// Ask the user to approve the call.
+  Ask,
+}
+
+/// The git hook a `GitHook` rule runs in.
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum GitHook {
+  /// Checks the commit message and the staged diff.
+  CommitMsg,
+  /// Checks the refs being pushed.
+  PrePush,
+}
+
+/// How a rule behaves when ahok itself fails while checking it.
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum Fail {
+  /// Block the call instead of the default fail-open allow.
+  Closed,
+}
+
+/// The top level of a rules file.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct File {
+  rule: Vec<Rule>,
+}
+
+/// Parses the text of one rules file.
+fn parse(text: &str) -> Result<Vec<Rule>, toml::de::Error> {
+  toml::from_str::<File>(text).map(|file| file.rule)
+}
+
+/// Loads every `*.toml` file in `dir`, in file-name order.
+///
+/// # Errors
+///
+/// `Error::Io` if `dir` or a file in it can't be read, and `Error::Parse`
+/// naming the first file that fails to parse.
+pub fn load(dir: &path::Path) -> Result<Vec<Rule>, Error> {
+  let mut paths = fs::read_dir(dir)?
+    .map(|entry| entry.map(|entry| entry.path()))
+    .collect::<io::Result<Vec<_>>>()?;
+  paths.retain(|path| path.extension().is_some_and(|ext| ext == "toml"));
+  paths.sort();
+  let mut rules = Vec::new();
+  for path in paths {
+    let text = fs::read_to_string(&path)?;
+    match parse(&text) {
+      Ok(file_rules) => rules.extend(file_rules),
+      Err(source) => return Err(Error::Parse { path, source }),
+    }
+  }
+  Ok(rules)
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn fixtures() -> path::PathBuf {
+    path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/rules")
+  }
+
+  #[test]
+  fn parses_shell_and_edit_rules() {
+    let text = include_str!("../tests/fixtures/rules/style.toml");
+    let rules = parse(text).unwrap();
+    assert_eq!(rules.len(), 4);
+    assert!(matches!(rules[0].tool, Some(Tools::One(_))));
+    assert!(matches!(rules[1].tool, Some(Tools::Many(_))));
+  }
+
+  #[test]
+  fn parses_git_hook_rules() {
+    let text = include_str!("../tests/fixtures/rules/git.toml");
+    let rules = parse(text).unwrap();
+    assert_eq!(rules.len(), 4);
+    assert!(matches!(rules[1].hook, Some(GitHook::CommitMsg)));
+    assert!(matches!(rules[3].hook, Some(GitHook::PrePush)));
+  }
+
+  #[test]
+  fn double_quoted_regex_escape_is_rejected() {
+    let text = "[[rule]]\nid = \"x\"\nevent = \"GitHook\"\npattern = \"\\(\"\n";
+    assert!(parse(text).is_err());
+  }
+
+  #[test]
+  fn unknown_field_is_rejected() {
+    let text = "[[rule]]\nid = \"x\"\nevent = \"PreToolUse\"\ntypo = 1\n";
+    assert!(parse(text).is_err());
+  }
+
+  #[test]
+  fn loads_files_in_name_order() {
+    let rules = load(&fixtures()).unwrap();
+    assert_eq!(rules.len(), 8);
+    assert_eq!(rules[0].id, "no-unapproved-commit");
+    assert_eq!(rules[4].id, "format-via-fml");
+  }
+
+  #[test]
+  fn parse_error_names_the_file() {
+    let dir = std::env::temp_dir().join("ahok-rules-bad");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+      dir.join("bad.toml"),
+      "[[rule]]
+",
+    )
+    .unwrap();
+    let err = load(&dir).unwrap_err().to_string();
+    assert!(err.starts_with(&dir.join("bad.toml").display().to_string()));
+  }
+}
