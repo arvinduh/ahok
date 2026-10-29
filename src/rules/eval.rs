@@ -79,6 +79,10 @@ fn applies(
     && rule.match_pattern.as_ref().is_none_or(|pattern| {
       matches!(tool, event::Tool::Shell { command } if pattern.is_match(command))
     })
+    && rule.match_files.as_ref().is_none_or(|globs| {
+      matches!(tool, event::Tool::Edit { paths }
+        if paths.iter().any(|path| globs.is_match(path)))
+    })
     && (rule.match_commands.is_empty()
       || rule
         .match_commands
@@ -190,6 +194,25 @@ mod tests {
     let text =
       "[[rule]]\nid = \"x\"\nevent = \"PreToolUse\"\nmatch_pattern = '('\n";
     assert!(rules::parse(text).is_err());
+  }
+
+  #[test]
+  fn file_globs_match_edited_paths() {
+    let text = "[[rule]]\nid = \"x\"\nevent = \"PreToolUse\"\n\
+      match_files = [\"*.rs\"]\ndecision = \"deny\"\n";
+    let rules = rules::parse(text).unwrap();
+    let edit = |path: &str| event::Event {
+      session_id: "s1".to_owned(),
+      kind: event::Kind::PreToolUse(event::Tool::Edit {
+        paths: vec![path::PathBuf::from(path)],
+      }),
+    };
+    let env = Env {
+      os: "linux",
+      var_set: &|_| false,
+    };
+    assert!(evaluate(&rules, &edit("/src/a.rs"), &env).is_some());
+    assert!(evaluate(&rules, &edit("/src/a.py"), &env).is_none());
   }
 
   #[test]

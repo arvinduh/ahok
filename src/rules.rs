@@ -13,6 +13,7 @@ use std::fs;
 use std::io;
 use std::path;
 
+use globset;
 use regex;
 use serde;
 use toml;
@@ -50,8 +51,8 @@ pub struct Rule {
   match_commands: Vec<String>,
   #[serde(default, deserialize_with = "compile_regex")]
   match_pattern: Option<regex::Regex>,
-  #[serde(default)]
-  match_files: Vec<String>,
+  #[serde(default, deserialize_with = "compile_globs")]
+  match_files: Option<globset::GlobSet>,
   decision: Option<Decision>,
   reason: Option<String>,
   os: Option<String>,
@@ -130,6 +131,18 @@ fn compile_regex<'de, D: serde::Deserializer<'de>>(
   regex::Regex::new(&pattern)
     .map(Some)
     .map_err(<D::Error as serde::de::Error>::custom)
+}
+
+/// Compiles a glob list into one matcher, failing loading on a bad glob.
+fn compile_globs<'de, D: serde::Deserializer<'de>>(
+  deserializer: D,
+) -> Result<Option<globset::GlobSet>, D::Error> {
+  let globs = <Vec<String> as serde::Deserialize>::deserialize(deserializer)?;
+  let mut set = globset::GlobSetBuilder::new();
+  for glob in &globs {
+    set.add(globset::Glob::new(glob).map_err(serde::de::Error::custom)?);
+  }
+  set.build().map(Some).map_err(serde::de::Error::custom)
 }
 
 /// The top level of a rules file.
