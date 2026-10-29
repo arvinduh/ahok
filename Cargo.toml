@@ -1,4 +1,7 @@
 [workspace]
+members = ["crates/*"]
+# Plain `cargo test` and `cargo clippy` cover every crate, not just the bin.
+default-members = [".", "crates/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -27,6 +30,7 @@ missing_docs_in_private_items = "warn"
 redundant_clone = "warn"
 
 [workspace.dependencies]
+event = { path = "crates/event", package = "ahok-event" }
 globset = { version = "0.4.21", default-features = false }
 regex = "1.13.1"
 serde = { version = "1.0.229", features = ["derive"] }
@@ -57,6 +61,7 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+event.workspace = true
 clap.workspace = true
 globset.workspace = true
 regex.workspace = true

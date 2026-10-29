@@ -1,8 +1,10 @@
 //! Harness-neutral hook events.
 //!
 //! Harness adapters translate each harness's stdin JSON into these types, and
-//! the rule engine evaluates them. This module parses nothing and knows no
+//! the rule engine evaluates them. This crate parses nothing and knows no
 //! harness; tool names are normalized before they reach it.
+
+#![deny(clippy::print_stdout, clippy::print_stderr)]
 
 use std::path;
 

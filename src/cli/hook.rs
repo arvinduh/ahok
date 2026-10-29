@@ -12,12 +12,12 @@ use std::time;
 
 use ahok::dirs;
 use ahok::dispatch;
-use ahok::event;
 use ahok::harness;
 use ahok::journal;
 use ahok::rules;
 use ahok::session;
 use clap;
+use event;
 use thiserror;
 
 use crate::cli;
