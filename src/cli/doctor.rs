@@ -3,7 +3,7 @@
 //! This module prints one line per check from the library's `doctor`
 //! module and reports `Failed` if any check failed.
 
-use ahok::doctor;
+use doctor;
 
 use crate::cli;
 
