@@ -10,7 +10,6 @@ pub mod dirs;
 pub mod doctor;
 pub mod harness;
 pub mod journal;
-pub mod link;
 pub mod rules;
 pub mod session;
 pub mod shell;

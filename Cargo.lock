@@ -17,6 +17,7 @@ version = "0.1.0"
 dependencies = [
  "ahok-dispatch",
  "ahok-event",
+ "ahok-link",
  "clap",
  "globset",
  "regex",
@@ -37,6 +38,16 @@ name = "ahok-event"
 version = "0.1.0"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "ahok-link"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "serde",
+ "thiserror",
+ "toml",
 ]
 
 [[package]]

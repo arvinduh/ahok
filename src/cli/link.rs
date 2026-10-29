@@ -5,8 +5,8 @@
 
 use std::path;
 
-use ahok::link;
 use clap;
+use link;
 
 use crate::cli;
 

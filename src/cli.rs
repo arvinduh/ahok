@@ -44,7 +44,7 @@ pub enum Error {
   NoState,
   /// `links.toml` could not be read or parsed.
   #[error(transparent)]
-  Link(#[from] ahok::link::Error),
+  Link(#[from] ::link::Error),
   /// A state file exists but could not be read.
   #[error("{}: {source}", path.display())]
   Read {
