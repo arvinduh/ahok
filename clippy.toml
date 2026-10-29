@@ -1,0 +1,10 @@
+# Clippy settings for ahok. A repo config replaces the global one, so the
+# global rules ahok relies on are repeated here for CI.
+
+# Google Rust guide: `expect` over `unwrap`, except in tests.
+allow-unwrap-in-tests = true
+
+# Google Rust guide: never call `catch_unwind` in first-party code.
+disallowed-methods = [
+  { path = "std::panic::catch_unwind", reason = "panics abort; never catch" },
+]
