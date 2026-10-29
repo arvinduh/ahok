@@ -4,6 +4,8 @@
 //! it never prints, never exits, and has no dependency on `clap`. The `ahok`
 //! binary owns argument parsing, I/O streams, and exit codes.
 
+#![deny(clippy::print_stdout, clippy::print_stderr)]
+
 pub mod dirs;
 pub mod dispatch;
 pub mod doctor;
