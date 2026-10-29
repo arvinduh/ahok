@@ -3,7 +3,7 @@
 
 use std::env;
 use std::fs;
-use std::io::Write;
+use std::io;
 use std::path;
 use std::process;
 
@@ -28,12 +28,12 @@ fn run(state: &path::Path, event: &str, payload: &str) -> String {
     .stdout(process::Stdio::piped())
     .spawn()
     .expect("the ahok binary runs");
-  child
-    .stdin
-    .take()
-    .expect("stdin is piped")
-    .write_all(payload.as_bytes())
-    .expect("the hook reads all of stdin");
+  // A temporary, so stdin closes before the wait and the hook sees EOF.
+  io::Write::write_all(
+    &mut child.stdin.take().expect("stdin is piped"),
+    payload.as_bytes(),
+  )
+  .expect("the hook reads all of stdin");
   let output = child.wait_with_output().expect("the hook exits");
   assert!(output.status.success(), "hook must always exit 0");
   String::from_utf8(output.stdout).expect("the reply is UTF-8 JSON")

@@ -6,9 +6,9 @@
 
 use std::fs;
 use std::io;
-use std::io::Write;
 use std::path;
 
+use serde;
 use serde_json;
 
 use crate::rules;
@@ -56,11 +56,11 @@ fn append(path: &path::Path, bytes: &[u8]) -> io::Result<()> {
   if let Some(parent) = path.parent() {
     fs::create_dir_all(parent)?;
   }
-  fs::OpenOptions::new()
+  let mut file = fs::OpenOptions::new()
     .create(true)
     .append(true)
-    .open(path)?
-    .write_all(bytes)
+    .open(path)?;
+  io::Write::write_all(&mut file, bytes)
 }
 
 #[cfg(test)]

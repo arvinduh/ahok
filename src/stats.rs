@@ -6,6 +6,7 @@
 
 use std::collections;
 
+use serde;
 use serde_json;
 
 /// Call count and latency percentiles for one hook event.

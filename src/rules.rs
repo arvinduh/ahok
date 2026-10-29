@@ -11,6 +11,7 @@ use std::path;
 use globset;
 use regex;
 use serde;
+use thiserror;
 use toml;
 
 mod eval;

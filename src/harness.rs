@@ -7,6 +7,7 @@
 pub mod claude;
 
 use serde_json;
+use thiserror;
 
 use crate::event;
 

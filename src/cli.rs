@@ -10,6 +10,9 @@ mod stats;
 use std::io;
 use std::path;
 
+use clap;
+use thiserror;
+
 /// Control plane for coding-agent harness hooks.
 #[derive(clap::Parser)]
 #[command(name = "ahok", version)]

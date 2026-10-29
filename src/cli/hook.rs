@@ -7,7 +7,6 @@
 
 use std::env;
 use std::io;
-use std::io::Read;
 use std::path;
 use std::time;
 
@@ -18,6 +17,8 @@ use ahok::harness;
 use ahok::journal;
 use ahok::rules;
 use ahok::session;
+use clap;
+use thiserror;
 
 use crate::cli;
 
@@ -90,7 +91,7 @@ impl Args {
       return Err(Error::UnknownHarness(self.harness.clone()));
     }
     let mut input = String::new();
-    io::stdin().read_to_string(&mut input)?;
+    io::Read::read_to_string(&mut io::stdin(), &mut input)?;
     let event = harness::claude::parse(&self.event, &input)?;
     let (reply, found) = match &event.kind {
       event::Kind::PreToolUse(tool) => {

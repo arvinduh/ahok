@@ -3,10 +3,11 @@
 //! This module reads `decisions.jsonl` and prints one compact, ANSI-free
 //! summary. The arithmetic lives in the library's `stats` module.
 
-use ahok::dirs;
-use ahok::stats;
 use std::fs;
 use std::io;
+
+use ahok::dirs;
+use ahok::stats;
 
 use crate::cli;
 

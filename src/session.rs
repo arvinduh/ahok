@@ -10,6 +10,7 @@ use std::fs;
 use std::io;
 use std::path;
 
+use serde;
 use serde_json;
 
 /// What one harness session has done so far.
