@@ -21,6 +21,8 @@ struct Payload {
   tool_name: String,
   #[serde(default)]
   tool_input: ToolInput,
+  #[serde(default)]
+  stop_hook_active: bool,
 }
 
 /// The `tool_input` fields used by `Bash` and the file-editing tools.
@@ -41,8 +43,11 @@ pub fn parse(
   json: &str,
 ) -> Result<event::Event, harness::Error> {
   let payload: Payload = serde_json::from_str(json)?;
-  let kind =
-    harness::kind(event_name, || tool(payload.tool_name, payload.tool_input))?;
+  let kind = harness::kind(
+    event_name,
+    || tool(payload.tool_name, payload.tool_input),
+    payload.stop_hook_active,
+  )?;
   Ok(event::Event {
     session_id: payload.session_id,
     cwd: payload.cwd,
@@ -147,7 +152,20 @@ mod tests {
   #[test]
   fn stop_has_no_tool() {
     let event = parse("Stop", r#"{"session_id":"s1"}"#).unwrap();
-    assert!(matches!(event.kind, event::Kind::Stop));
+    assert!(matches!(
+      event.kind,
+      event::Kind::Stop {
+        already_blocked: false
+      }
+    ));
+    let json = r#"{"session_id":"s1","stop_hook_active":true}"#;
+    let event = parse("Stop", json).unwrap();
+    assert!(matches!(
+      event.kind,
+      event::Kind::Stop {
+        already_blocked: true
+      }
+    ));
   }
 
   #[test]

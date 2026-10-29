@@ -30,7 +30,11 @@ pub enum Kind {
   /// A session started or resumed.
   SessionStart,
   /// The agent finished its turn.
-  Stop,
+  Stop {
+    /// The agent is already continuing because a Stop hook blocked it;
+    /// blocking again could loop forever.
+    already_blocked: bool,
+  },
   /// Before a model call (Antigravity only).
   PreInvocation,
 }
