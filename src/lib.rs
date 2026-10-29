@@ -3,3 +3,5 @@
 //! The library turns harness hook input into decisions and returns data only:
 //! it never prints, never exits, and has no dependency on `clap`. The `ahok`
 //! binary owns argument parsing, I/O streams, and exit codes.
+
+pub mod event;
