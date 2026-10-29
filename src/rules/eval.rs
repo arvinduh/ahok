@@ -100,7 +100,8 @@ fn applies(
       .as_ref()
       .is_none_or(|tools| names(tools).iter().any(|name| tool_is(tool, name)))
     && rule.match_pattern.as_ref().is_none_or(|pattern| {
-      matches!(tool, event::Tool::Shell { command } if pattern.is_match(command))
+      matches!(tool, event::Tool::Shell { command }
+        if pattern.is_match(command))
     })
     && rule.match_files.as_ref().is_none_or(|globs| {
       matches!(tool, event::Tool::Edit { paths }
@@ -108,7 +109,10 @@ fn applies(
     })
     && (rule.match_commands.is_empty()
       || argvs.iter().any(|argv| {
-        rule.match_commands.iter().any(|pattern| has_words(argv, pattern))
+        rule
+          .match_commands
+          .iter()
+          .any(|pattern| has_words(argv, pattern))
           && rule
             .max_file_bytes
             .is_none_or(|max| reads_large_file(argv, cwd, max))

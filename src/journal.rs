@@ -84,9 +84,10 @@ mod tests {
     let text = fs::read_to_string(dir.join("decisions.jsonl")).unwrap();
     let lines: Vec<_> = text.lines().collect();
     assert_eq!(lines.len(), 2);
-    assert_eq!(
-      lines[0],
-      r#"{"unix_ms":1,"harness":"claude","event":"PreToolUse","rule":"format-via-fml","decision":"deny","micros":420}"#
+    let expected = concat!(
+      r#"{"unix_ms":1,"harness":"claude","event":"PreToolUse","#,
+      r#""rule":"format-via-fml","decision":"deny","micros":420}"#,
     );
+    assert_eq!(lines[0], expected);
   }
 }
