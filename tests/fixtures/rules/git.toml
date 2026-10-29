@@ -1,0 +1,34 @@
+[[rule]]
+id = "no-unapproved-commit"
+event = "PreToolUse"
+tool = "shell"
+match_commands = ["git commit", "jj commit", "jj describe"]
+skip_if_env = "CLAUDE_CODE_REMOTE"
+decision = "ask"
+reason = "AGENTS.md §9: never commit without explicit user instruction."
+
+[[rule]]
+id = "conventional-commit-msg"
+event = "GitHook"
+hook = "commit-msg"
+pattern = '^(feat|fix|refactor|style|docs|test|chore)\([a-z0-9_-]+\): [a-z].*[^.]$'
+allow_tag = "[sweep]"
+reason = "AGENTS.md §4: use `<type>(<scope>): <lowercase summary>`."
+
+[[rule]]
+id = "commit-diff-budget"
+event = "GitHook"
+hook = "commit-msg"
+max_net_lines = 50
+exclude_globs = ["*.lock", "**/fixtures/**"]
+allow_env = "ALLOW_LARGE_COMMIT"
+allow_tag = "[sweep]"
+reason = "AGENTS.md §4: keep commits <= 50 net lines."
+
+[[rule]]
+id = "no-push-default-branch"
+event = "GitHook"
+hook = "pre-push"
+protected_branches = ["main", "master"]
+fail = "closed"
+reason = "AGENTS.md §9: never push to the default branch."

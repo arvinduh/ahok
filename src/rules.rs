@@ -29,8 +29,17 @@ pub struct Rule {
   require_skill: Option<String>,
   #[serde(default)]
   once_per_session: bool,
+  hook: Option<GitHook>,
+  pattern: Option<String>,
+  allow_tag: Option<String>,
+  max_net_lines: Option<u32>,
+  #[serde(default)]
+  exclude_globs: Vec<String>,
+  allow_env: Option<String>,
   skip_if_env: Option<String>,
   max_file_bytes: Option<u64>,
+  #[serde(default)]
+  protected_branches: Vec<String>,
   fail: Option<Fail>,
 }
 
@@ -64,6 +73,16 @@ enum Decision {
   Ask,
 }
 
+/// The git hook a `GitHook` rule runs in.
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum GitHook {
+  /// Checks the commit message and the staged diff.
+  CommitMsg,
+  /// Checks the refs being pushed.
+  PrePush,
+}
+
 /// How a rule behaves when ahok itself fails while checking it.
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -95,6 +114,21 @@ mod tests {
     assert_eq!(rules.len(), 4);
     assert!(matches!(rules[0].tool, Some(Tools::One(_))));
     assert!(matches!(rules[1].tool, Some(Tools::Many(_))));
+  }
+
+  #[test]
+  fn parses_git_hook_rules() {
+    let text = include_str!("../tests/fixtures/rules/git.toml");
+    let rules = parse(text).unwrap();
+    assert_eq!(rules.len(), 4);
+    assert!(matches!(rules[1].hook, Some(GitHook::CommitMsg)));
+    assert!(matches!(rules[3].hook, Some(GitHook::PrePush)));
+  }
+
+  #[test]
+  fn double_quoted_regex_escape_is_rejected() {
+    let text = "[[rule]]\nid = \"x\"\nevent = \"GitHook\"\npattern = \"\\(\"\n";
+    assert!(parse(text).is_err());
   }
 
   #[test]
