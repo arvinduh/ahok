@@ -1,0 +1,5 @@
+edition = "2024"
+tab_spaces = 2
+max_width = 80
+newline_style = "Unix"
+use_field_init_shorthand = true
