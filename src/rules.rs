@@ -4,11 +4,6 @@
 //! agents repo share with ahok. Turning events into decisions builds on it;
 //! finding the rules directory belongs to the caller.
 
-#![expect(
-  dead_code,
-  reason = "the evaluator reads rule fields as each rule kind is wired up"
-)]
-
 use std::fs;
 use std::io;
 use std::path;
@@ -43,6 +38,11 @@ pub enum Error {
 /// One `[[rule]]` table, exactly as written in a rules file.
 #[derive(Debug, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
+#[expect(
+  dead_code,
+  reason = "git-hook fields are parsed so bad rules fail to load; `ahok git` \
+            will read them"
+)]
 pub struct Rule {
   /// Unique name, shown to the agent and logged.
   id: String,
