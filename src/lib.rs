@@ -5,3 +5,4 @@
 //! binary owns argument parsing, I/O streams, and exit codes.
 
 pub mod event;
+pub mod harness;
