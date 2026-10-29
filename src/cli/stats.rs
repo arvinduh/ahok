@@ -6,8 +6,8 @@
 use std::fs;
 use std::io;
 
-use ahok::dirs;
-use ahok::stats;
+use state::dirs;
+use state::stats;
 
 use crate::cli;
 

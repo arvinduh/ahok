@@ -6,11 +6,7 @@
 
 #![deny(clippy::print_stdout, clippy::print_stderr)]
 
-pub mod dirs;
 pub mod doctor;
 pub mod harness;
-pub mod journal;
 pub mod rules;
-pub mod session;
 pub mod shell;
-pub mod stats;

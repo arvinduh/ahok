@@ -9,7 +9,8 @@ use std::fs;
 use std::path;
 use std::process;
 
-use crate::dirs;
+use state::dirs;
+
 use crate::rules;
 
 /// How a check came out.
