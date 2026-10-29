@@ -40,6 +40,8 @@ enum Error {
   Rules(#[from] rules::Error),
   #[error("unsupported harness `{0}`")]
   UnknownHarness(String),
+  #[error("session state: {0}")]
+  Session(io::Error),
   #[error("no config directory: set AHOK_CONFIG_DIR or HOME")]
   NoConfig,
 }
@@ -84,22 +86,8 @@ impl Args {
     io::stdin().read_to_string(&mut input)?;
     let event = harness::claude::parse(&self.event, &input)?;
     let (reply, found) = match &event.kind {
-      event::Kind::PreToolUse(_) => {
-        let config = dirs::config().ok_or(Error::NoConfig)?;
-        let rules = rules::load(&config.join("rules"))?;
-        let var_set = |name: &str| env::var_os(name).is_some();
-        let session = session::State::default();
-        let env = rules::Env {
-          os: env::consts::OS,
-          var_set: &var_set,
-          session: &session,
-        };
-        let found = rules::evaluate(&rules, &event, &env);
-        let reply = harness::claude::respond(found.as_ref());
-        (
-          reply,
-          found.map(|found| (found.id.to_owned(), found.decision)),
-        )
+      event::Kind::PreToolUse(tool) => {
+        pre_tool_use(&event, tool, state, unix_ms)?
       }
       event::Kind::PostToolUse(event::Tool::Edit { paths }) => {
         let failure = dispatch::format(&event.cwd, paths);
@@ -129,4 +117,62 @@ impl Args {
     }
     Ok(reply)
   }
+}
+
+/// Evaluates the rules for a `PreToolUse` call and updates the session.
+///
+/// Returns the reply and the deciding rule's id and decision.
+///
+/// # Side Effects
+///
+/// Records skill loads and once-per-session fires in the session file;
+/// a failed save is logged, not returned, so the decision still stands.
+fn pre_tool_use(
+  event: &event::Event,
+  tool: &event::Tool,
+  state: Option<&path::Path>,
+  unix_ms: u64,
+) -> Result<(String, Option<(String, rules::Decision)>), Error> {
+  let config = dirs::config().ok_or(Error::NoConfig)?;
+  let rules = rules::load(&config.join("rules"))?;
+  let id = &event.session_id;
+  let mut session = match state {
+    Some(dir) => session::State::load(dir, id).map_err(Error::Session)?,
+    None => session::State::default(),
+  };
+  let var_set = |name: &str| env::var_os(name).is_some();
+  let env = rules::Env {
+    os: env::consts::OS,
+    var_set: &var_set,
+    session: &session,
+  };
+  let found = rules::evaluate(&rules, event, &env);
+  let reply = harness::claude::respond(found.as_ref());
+  let fired = found
+    .as_ref()
+    .filter(|found| found.once)
+    .map(|found| found.id);
+  let decided = found.map(|found| (found.id.to_owned(), found.decision));
+  let loaded = match tool {
+    event::Tool::Skill { name } => Some(name.as_str()),
+    _ => None,
+  };
+  if (fired.is_some() || loaded.is_some())
+    && let Some(dir) = state
+  {
+    if let Some(rule) = fired {
+      session.add_fired(rule);
+    }
+    if let Some(skill) = loaded {
+      session.add_skill(skill);
+    }
+    if let Err(err) = session.save(dir, id) {
+      drop(journal::error(
+        dir,
+        unix_ms,
+        &format!("session save: {err}"),
+      ));
+    }
+  }
+  Ok((reply, decided))
 }
