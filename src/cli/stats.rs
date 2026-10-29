@@ -3,33 +3,27 @@
 //! This module reads `decisions.jsonl` and prints one compact, ANSI-free
 //! summary. The arithmetic lives in the library's `stats` module.
 
-use std::fs;
-use std::io;
-use std::process;
-
 use ahok::dirs;
 use ahok::stats;
+use std::fs;
+use std::io;
 
-/// Prints the summary; exits 1 if the log can't be read.
+use crate::cli;
+
+/// Prints the summary; errors if the log can't be read.
 ///
 /// A free function rather than `Args::run`, since the command takes no
 /// arguments.
-pub fn run() -> process::ExitCode {
-  let Some(state) = dirs::state() else {
-    eprintln!("[ERROR] no state directory: set XDG_STATE_HOME or HOME");
-    return process::ExitCode::FAILURE;
-  };
+pub fn run() -> Result<cli::Status, cli::Error> {
+  let state = dirs::state().ok_or(cli::Error::NoState)?;
   let path = state.join("decisions.jsonl");
   let log = match fs::read_to_string(&path) {
     Ok(log) => log,
     Err(err) if err.kind() == io::ErrorKind::NotFound => {
       println!("no decisions logged yet ({})", path.display());
-      return process::ExitCode::SUCCESS;
+      return Ok(cli::Status::Clean);
     }
-    Err(err) => {
-      eprintln!("[ERROR] {}: {err}", path.display());
-      return process::ExitCode::FAILURE;
-    }
+    Err(source) => return Err(cli::Error::Read { path, source }),
   };
   let summary = stats::summarize(&log);
   for event in &summary.events {
@@ -47,7 +41,7 @@ pub fn run() -> process::ExitCode {
   if summary.skipped > 0 {
     println!("skipped {} malformed line(s)", summary.skipped);
   }
-  process::ExitCode::SUCCESS
+  Ok(cli::Status::Clean)
 }
 
 /// Formats microseconds as milliseconds with one decimal.

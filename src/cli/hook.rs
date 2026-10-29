@@ -1,15 +1,14 @@
 //! `ahok hook <harness> <event>`: answer one harness hook call.
 //!
 //! This module owns the hook process contract: read the payload from stdin,
-//! always write a JSON reply to stdout, and exit 0. Any failure is logged to
-//! `errors.log` and the call is allowed (fail open). Parsing, rules, and
-//! replies come from the library.
+//! always write a JSON reply to stdout, and end `Clean` so the process exits
+//! 0. Any failure is logged to `errors.log` and the call is allowed (fail
+//! open). Parsing, rules, and replies come from the library.
 
 use std::env;
 use std::io;
 use std::io::Read;
 use std::path;
-use std::process;
 use std::time;
 
 use ahok::dirs;
@@ -19,6 +18,8 @@ use ahok::harness;
 use ahok::journal;
 use ahok::rules;
 use ahok::session;
+
+use crate::cli;
 
 /// Arguments of `ahok hook`.
 #[derive(clap::Args)]
@@ -47,8 +48,8 @@ enum Error {
 }
 
 impl Args {
-  /// Answers the hook call on stdout. Always exits 0.
-  pub fn run(self) -> process::ExitCode {
+  /// Answers the hook call on stdout. Always `Clean`: hooks fail open.
+  pub fn run(self) -> cli::Status {
     let start = time::Instant::now();
     let unix_ms = time::SystemTime::now()
       .duration_since(time::UNIX_EPOCH)
@@ -65,7 +66,7 @@ impl Args {
       }
     };
     println!("{reply}");
-    process::ExitCode::SUCCESS
+    cli::Status::Clean
   }
 
   /// Parses the payload, runs what the event calls for, logs the call, and
