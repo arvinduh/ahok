@@ -5,6 +5,7 @@
 
 mod doctor;
 mod hook;
+mod link;
 mod stats;
 
 use std::io;
@@ -21,6 +22,8 @@ pub enum Args {
   Hook(hook::Args),
   /// Check that rules load, tools are installed, and harnesses call ahok.
   Doctor,
+  /// Symlink a config repo's files into place, from its `links.toml`.
+  Link(link::Args),
   /// Print hook latency percentiles and rule hit counts.
   Stats,
 }
@@ -39,6 +42,9 @@ pub enum Error {
   /// No state directory could be located.
   #[error("no state directory: set XDG_STATE_HOME or HOME")]
   NoState,
+  /// `links.toml` could not be read or parsed.
+  #[error(transparent)]
+  Link(#[from] ahok::link::Error),
   /// A state file exists but could not be read.
   #[error("{}: {source}", path.display())]
   Read {
@@ -55,6 +61,7 @@ impl Args {
     match self {
       Self::Doctor => Ok(doctor::run()),
       Self::Hook(args) => Ok(args.run()),
+      Self::Link(args) => args.run(),
       Self::Stats => stats::run(),
     }
   }

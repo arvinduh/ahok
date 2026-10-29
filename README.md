@@ -61,11 +61,18 @@ The hook always exits 0 and writes JSON. Any internal failure is logged to
 
 ## Commands
 
-| Command                       | Does                                                  |
-| ----------------------------- | ----------------------------------------------------- |
-| `ahok hook <harness> <event>` | Answers one hook call (`claude` today).               |
-| `ahok doctor`                 | Checks the rules, `fml`/`git`/`mise`, and hook setup. |
-| `ahok stats`                  | Shows p50/p99 hook latency and rule hit counts.       |
+| Command                        | Does                                                  |
+| ------------------------------ | ----------------------------------------------------- |
+| `ahok hook <harness> <event>`  | Answers one hook call (`claude` today).               |
+| `ahok doctor`                  | Checks the rules, `fml`/`git`/`mise`, and hook setup. |
+| `ahok link [repo] [--dry-run]` | Symlinks a repo's configs from its `links.toml`.      |
+| `ahok stats`                   | Shows p50/p99 hook latency and rule hit counts.       |
+
+`ahok link` reads `[[link]]` entries with a `source` path in the repo and a
+target in `home`, `linux` or `windows` (`~` and `%VAR%` expand). A trailing
+`/*` on `source` links each child. `cloud = true` also links the entry in
+Claude Code cloud sessions, which ahok detects from `CLAUDE_CODE_REMOTE`.
+It never overwrites a real file: it moves it to `<name>.bak-<time>` first.
 
 Config comes from `$AHOK_CONFIG_DIR` (default `~/.agents`). State lives in
 `%LOCALAPPDATA%\ahok` on Windows and `~/.local/state/ahok` elsewhere:
