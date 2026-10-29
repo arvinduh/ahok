@@ -17,6 +17,7 @@ version = "0.1.0"
 dependencies = [
  "ahok-dispatch",
  "ahok-event",
+ "ahok-harness",
  "ahok-link",
  "ahok-rules",
  "ahok-state",
@@ -40,6 +41,18 @@ name = "ahok-event"
 version = "0.1.0"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "ahok-harness"
+version = "0.1.0"
+dependencies = [
+ "ahok-dispatch",
+ "ahok-event",
+ "ahok-rules",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

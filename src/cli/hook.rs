@@ -10,10 +10,10 @@ use std::io;
 use std::path;
 use std::time;
 
-use ahok::harness;
 use clap;
 use dispatch;
 use event;
+use harness;
 use rules;
 use state::dirs;
 use state::journal;
