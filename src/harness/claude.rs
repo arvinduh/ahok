@@ -15,6 +15,8 @@ use crate::harness;
 struct Payload {
   session_id: String,
   #[serde(default)]
+  cwd: path::PathBuf,
+  #[serde(default)]
   tool_name: String,
   #[serde(default)]
   tool_input: ToolInput,
@@ -42,6 +44,7 @@ pub fn parse(
     harness::kind(event_name, || tool(payload.tool_name, payload.tool_input))?;
   Ok(event::Event {
     session_id: payload.session_id,
+    cwd: payload.cwd,
     kind,
   })
 }

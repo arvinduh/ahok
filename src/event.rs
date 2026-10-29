@@ -11,6 +11,9 @@ use std::path;
 pub struct Event {
   /// Harness session id; keys once-per-session state.
   pub session_id: String,
+  /// Directory the agent works in; relative paths in a tool call resolve
+  /// against it. Empty when the harness didn't say.
+  pub cwd: path::PathBuf,
   /// The lifecycle point the hook fired at.
   pub kind: Kind,
 }
