@@ -7,4 +7,3 @@
 #![deny(clippy::print_stdout, clippy::print_stderr)]
 
 pub mod doctor;
-pub mod harness;

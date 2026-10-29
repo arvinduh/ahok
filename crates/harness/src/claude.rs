@@ -11,8 +11,6 @@ use rules;
 use serde;
 use serde_json;
 
-use crate::harness;
-
 /// The fields of a Claude Code hook payload that rules read.
 #[derive(serde::Deserialize)]
 struct Payload {
@@ -47,14 +45,14 @@ struct ToolInput {
 ///
 /// # Errors
 ///
-/// `harness::Error::Json` for a malformed payload, and
-/// `harness::Error::UnknownEvent` for an unsupported `event_name`.
+/// `crate::Error::Json` for a malformed payload, and
+/// `crate::Error::UnknownEvent` for an unsupported `event_name`.
 pub fn parse(
   event_name: &str,
   json: &str,
-) -> Result<event::Event, harness::Error> {
+) -> Result<event::Event, crate::Error> {
   let payload: Payload = serde_json::from_str(json)?;
-  let kind = harness::kind(
+  let kind = crate::kind(
     event_name,
     || tool(payload.tool_name, payload.tool_input),
     payload.stop_hook_active,
@@ -238,12 +236,12 @@ mod tests {
   #[test]
   fn unknown_event_is_an_error() {
     let err = parse("Notification", r#"{"session_id":"s1"}"#).unwrap_err();
-    assert!(matches!(err, harness::Error::UnknownEvent { .. }));
+    assert!(matches!(err, crate::Error::UnknownEvent { .. }));
   }
 
   #[test]
   fn malformed_payload_is_an_error() {
     let err = parse("Stop", "{}").unwrap_err();
-    assert!(matches!(err, harness::Error::Json(_)));
+    assert!(matches!(err, crate::Error::Json(_)));
   }
 }
