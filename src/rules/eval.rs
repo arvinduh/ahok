@@ -4,6 +4,8 @@
 //! The schema and loading live in `rules`; turning the winner into a
 //! harness response belongs to the harness adapters.
 
+use std::fs;
+use std::path;
 use std::slice;
 
 use crate::event;
@@ -42,13 +44,14 @@ pub fn evaluate<'a>(
   let event::Kind::PreToolUse(tool) = &event.kind else {
     return None;
   };
+  let cwd = &event.cwd;
   let argvs = match tool {
     event::Tool::Shell { command } => shell::commands(command),
     _ => Vec::new(),
   };
   rules
     .iter()
-    .filter(|rule| applies(rule, tool, &argvs, env))
+    .filter(|rule| applies(rule, tool, &argvs, cwd, env))
     .filter_map(|rule| {
       Some(Match {
         id: &rule.id,
@@ -64,6 +67,7 @@ fn applies(
   rule: &rules::Rule,
   tool: &event::Tool,
   argvs: &[Vec<String>],
+  cwd: &path::Path,
   env: &Env,
 ) -> bool {
   matches!(rule.event, rules::Event::PreToolUse)
@@ -84,10 +88,28 @@ fn applies(
         if paths.iter().any(|path| globs.is_match(path)))
     })
     && (rule.match_commands.is_empty()
-      || rule
-        .match_commands
-        .iter()
-        .any(|pattern| argvs.iter().any(|argv| has_words(argv, pattern))))
+      || argvs.iter().any(|argv| {
+        rule.match_commands.iter().any(|pattern| has_words(argv, pattern))
+          && rule
+            .max_file_bytes
+            .is_none_or(|max| reads_large_file(argv, cwd, max))
+      }))
+}
+
+/// Whether any non-flag argument in `argv` names a file over `max` bytes.
+///
+/// # Side Effects
+///
+/// Reads file metadata, never contents.
+fn reads_large_file(argv: &[String], cwd: &path::Path, max: u64) -> bool {
+  argv
+    .iter()
+    .skip(1)
+    .filter(|arg| !arg.starts_with('-'))
+    .any(|arg| {
+      fs::metadata(cwd.join(arg))
+        .is_ok_and(|meta| meta.is_file() && meta.len() > max)
+    })
 }
 
 /// The tool names a rule lists.
@@ -123,8 +145,6 @@ fn has_words(argv: &[String], pattern: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-  use std::path;
-
   use super::*;
 
   fn fixture_rules() -> Vec<rules::Rule> {
@@ -135,6 +155,7 @@ mod tests {
   fn shell(command: &str) -> event::Event {
     event::Event {
       session_id: "s1".to_owned(),
+      cwd: path::PathBuf::new(),
       kind: event::Kind::PreToolUse(event::Tool::Shell {
         command: command.to_owned(),
       }),
@@ -203,6 +224,7 @@ mod tests {
     let rules = rules::parse(text).unwrap();
     let edit = |path: &str| event::Event {
       session_id: "s1".to_owned(),
+      cwd: path::PathBuf::new(),
       kind: event::Kind::PreToolUse(event::Tool::Edit {
         paths: vec![path::PathBuf::from(path)],
       }),
@@ -213,6 +235,23 @@ mod tests {
     };
     assert!(evaluate(&rules, &edit("/src/a.rs"), &env).is_some());
     assert!(evaluate(&rules, &edit("/src/a.py"), &env).is_none());
+  }
+
+  #[test]
+  fn bounded_read_checks_file_size() {
+    let dir = path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let rules = fixture_rules();
+    let env = Env {
+      os: "linux",
+      var_set: &|_| false,
+    };
+    let mut event = shell("cat Cargo.lock");
+    event.cwd = dir.to_owned();
+    let found = evaluate(&rules, &event, &env);
+    assert_eq!(found.unwrap().id, "bounded-file-read");
+    let mut event = shell("cat -n .rustfmt.toml");
+    event.cwd = dir.to_owned();
+    assert!(evaluate(&rules, &event, &env).is_none());
   }
 
   #[test]
