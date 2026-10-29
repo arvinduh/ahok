@@ -6,6 +6,8 @@
 
 use std::path;
 
+use serde;
+
 /// One hook invocation, translated from a harness's JSON.
 #[derive(Debug)]
 pub struct Event {
@@ -62,4 +64,24 @@ pub enum Tool {
     /// Tool name as the harness reports it.
     name: String,
   },
+}
+
+/// What happens to a call a rule matched; earlier variants win.
+#[derive(
+  Clone,
+  Copy,
+  Debug,
+  PartialEq,
+  Eq,
+  PartialOrd,
+  Ord,
+  serde::Deserialize,
+  serde::Serialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum Decision {
+  /// Block the call and tell the agent why.
+  Deny,
+  /// Ask the user to approve the call.
+  Ask,
 }

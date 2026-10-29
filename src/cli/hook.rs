@@ -140,7 +140,7 @@ fn pre_tool_use(
   tool: &event::Tool,
   state: Option<&path::Path>,
   unix_ms: u64,
-) -> Result<(String, Option<(String, rules::Decision)>), Error> {
+) -> Result<(String, Option<(String, event::Decision)>), Error> {
   let config = dirs::config().ok_or(Error::NoConfig)?;
   let rules = rules::load(&config.join("rules"))?;
   let id = &event.session_id;

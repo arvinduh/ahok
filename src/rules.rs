@@ -14,6 +14,8 @@ use serde;
 use thiserror;
 use toml;
 
+use crate::event;
+
 mod eval;
 
 pub use eval::Env;
@@ -61,7 +63,7 @@ pub struct Rule {
   #[serde(default, deserialize_with = "compile_globs")]
   match_files: Option<globset::GlobSet>,
   /// What to do with a matching call.
-  decision: Option<Decision>,
+  decision: Option<event::Decision>,
   /// Why, shown to the agent.
   reason: Option<String>,
   /// Only on this OS, as in `std::env::consts::OS`.
@@ -113,26 +115,6 @@ enum Tools {
   One(String),
   /// Any of several tools.
   Many(Vec<String>),
-}
-
-/// What happens to a call a rule matches; earlier variants win.
-#[derive(
-  Clone,
-  Copy,
-  Debug,
-  PartialEq,
-  Eq,
-  PartialOrd,
-  Ord,
-  serde::Deserialize,
-  serde::Serialize,
-)]
-#[serde(rename_all = "lowercase")]
-pub enum Decision {
-  /// Block the call and tell the agent why.
-  Deny,
-  /// Ask the user to approve the call.
-  Ask,
 }
 
 /// The git hook a `GitHook` rule runs in.
