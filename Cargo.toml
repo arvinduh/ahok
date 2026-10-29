@@ -1,17 +1,17 @@
-[package]
-name = "ahok"
+[workspace]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
-description = "Stateless control plane for coding-agent harness hooks"
 license = "MIT"
 repository = "https://github.com/arvinduh/ahok"
 
-[lints.rust]
+[workspace.lints.rust]
 missing_docs = "warn"
 unsafe_op_in_unsafe_fn = "deny"
 unused_qualifications = "warn"
 
-[lints.clippy]
+[workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
 wildcard_imports = "deny"
 single_component_path_imports = "allow"
@@ -26,7 +26,7 @@ undocumented_unsafe_blocks = "deny"
 missing_docs_in_private_items = "warn"
 redundant_clone = "warn"
 
-[dependencies]
+[workspace.dependencies]
 globset = { version = "0.4.21", default-features = false }
 regex = "1.13.1"
 serde = { version = "1.0.229", features = ["derive"] }
@@ -35,12 +35,34 @@ thiserror = "2.0.21"
 tree-sitter = "0.27.1"
 tree-sitter-bash = "0.25.1"
 
-[dependencies.clap]
+[workspace.dependencies.clap]
 version = "4.6.7"
 default-features = false
 features = ["std", "derive", "help", "usage", "error-context"]
 
-[dependencies.toml]
+[workspace.dependencies.toml]
 version = "1.1.8"
 default-features = false
 features = ["parse", "serde"]
+
+[package]
+name = "ahok"
+description = "Stateless control plane for coding-agent harness hooks"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+clap.workspace = true
+globset.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+tree-sitter.workspace = true
+tree-sitter-bash.workspace = true
