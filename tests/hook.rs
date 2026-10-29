@@ -20,7 +20,7 @@ fn run(state: &path::Path, event: &str, payload: &str) -> String {
   let root = path::Path::new(env!("CARGO_MANIFEST_DIR"));
   let mut child = process::Command::new(env!("CARGO_BIN_EXE_ahok"))
     .args(["hook", "claude", event])
-    .env("AHOK_CONFIG_DIR", root.join("tests/fixtures"))
+    .env("AHOK_CONFIG_DIR", root.join("crates/rules/tests/fixtures"))
     .env("XDG_STATE_HOME", state)
     .env("LOCALAPPDATA", state)
     .env_remove("CLAUDE_CODE_REMOTE")

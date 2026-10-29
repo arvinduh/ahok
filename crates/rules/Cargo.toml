@@ -1,0 +1,22 @@
+[package]
+name = "ahok-rules"
+description = "Rules from rules/*.toml: their schema, loading and evaluation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+event.workspace = true
+state.workspace = true
+globset.workspace = true
+regex.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+tree-sitter.workspace = true
+tree-sitter-bash.workspace = true

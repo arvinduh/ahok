@@ -11,10 +11,10 @@ use std::path;
 use std::time;
 
 use ahok::harness;
-use ahok::rules;
 use clap;
 use dispatch;
 use event;
+use rules;
 use state::dirs;
 use state::journal;
 use state::session;

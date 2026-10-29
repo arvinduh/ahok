@@ -7,11 +7,11 @@ use std::path;
 
 use dispatch;
 use event;
+use rules;
 use serde;
 use serde_json;
 
 use crate::harness;
-use crate::rules;
 
 /// The fields of a Claude Code hook payload that rules read.
 #[derive(serde::Deserialize)]

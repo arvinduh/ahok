@@ -11,7 +11,6 @@ use std::slice;
 use event;
 use state::session;
 
-use crate::rules;
 use crate::shell;
 
 /// The rule that decided an event.
@@ -47,7 +46,7 @@ pub struct Env<'a> {
 /// without a `decision` never win.
 #[must_use]
 pub fn evaluate<'a>(
-  rules: &'a [rules::Rule],
+  rules: &'a [crate::Rule],
   event: &event::Event,
   env: &Env,
 ) -> Option<Match<'a>> {
@@ -84,13 +83,13 @@ pub fn evaluate<'a>(
 
 /// Whether every condition `rule` sets holds for this tool call.
 fn applies(
-  rule: &rules::Rule,
+  rule: &crate::Rule,
   tool: &event::Tool,
   argvs: &[Vec<String>],
   cwd: &path::Path,
   env: &Env,
 ) -> bool {
-  matches!(rule.event, rules::Event::PreToolUse)
+  matches!(rule.event, crate::Event::PreToolUse)
     && rule.os.as_deref().is_none_or(|os| os == env.os)
     && rule
       .skip_if_env
@@ -137,10 +136,10 @@ fn reads_large_file(argv: &[String], cwd: &path::Path, max: u64) -> bool {
 }
 
 /// The tool names a rule lists.
-fn names(tools: &rules::Tools) -> &[String] {
+fn names(tools: &crate::Tools) -> &[String] {
   match tools {
-    rules::Tools::One(name) => slice::from_ref(name),
-    rules::Tools::Many(names) => names,
+    crate::Tools::One(name) => slice::from_ref(name),
+    crate::Tools::Many(names) => names,
   }
 }
 
@@ -172,9 +171,9 @@ fn has_words(argv: &[String], pattern: &str) -> bool {
 mod tests {
   use super::*;
 
-  fn fixture_rules() -> Vec<rules::Rule> {
+  fn fixture_rules() -> Vec<crate::Rule> {
     let dir = path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    rules::load(&dir.join("tests/fixtures/rules")).unwrap()
+    crate::load(&dir.join("tests/fixtures/rules")).unwrap()
   }
 
   fn shell(command: &str) -> event::Event {
@@ -241,14 +240,14 @@ mod tests {
   fn bad_regex_fails_to_parse() {
     let text =
       "[[rule]]\nid = \"x\"\nevent = \"PreToolUse\"\nmatch_pattern = '('\n";
-    assert!(rules::parse(text).is_err());
+    assert!(crate::parse(text).is_err());
   }
 
   #[test]
   fn file_globs_match_edited_paths() {
     let text = "[[rule]]\nid = \"x\"\nevent = \"PreToolUse\"\n\
       match_files = [\"*.rs\"]\ndecision = \"deny\"\n";
-    let rules = rules::parse(text).unwrap();
+    let rules = crate::parse(text).unwrap();
     let edit = |path: &str| event::Event {
       session_id: "s1".to_owned(),
       cwd: path::PathBuf::new(),
@@ -267,7 +266,8 @@ mod tests {
 
   #[test]
   fn bounded_read_checks_file_size() {
-    let dir = path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    // The workspace root, which holds a large Cargo.lock.
+    let dir = path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let rules = fixture_rules();
     let env = Env {
       os: "linux",
@@ -275,11 +275,11 @@ mod tests {
       session: &session::State::default(),
     };
     let mut event = shell("cat Cargo.lock");
-    event.cwd = dir.to_owned();
+    event.cwd = dir.clone();
     let found = evaluate(&rules, &event, &env);
     assert_eq!(found.unwrap().id, "bounded-file-read");
     let mut event = shell("cat -n .rustfmt.toml");
-    event.cwd = dir.to_owned();
+    event.cwd = dir;
     assert!(evaluate(&rules, &event, &env).is_none());
   }
 

@@ -18,6 +18,7 @@ dependencies = [
  "ahok-dispatch",
  "ahok-event",
  "ahok-link",
+ "ahok-rules",
  "ahok-state",
  "clap",
  "globset",
@@ -49,6 +50,21 @@ dependencies = [
  "serde",
  "thiserror",
  "toml",
+]
+
+[[package]]
+name = "ahok-rules"
+version = "0.1.0"
+dependencies = [
+ "ahok-event",
+ "ahok-state",
+ "globset",
+ "regex",
+ "serde",
+ "thiserror",
+ "toml",
+ "tree-sitter",
+ "tree-sitter-bash",
 ]
 
 [[package]]
