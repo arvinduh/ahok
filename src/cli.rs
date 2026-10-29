@@ -3,6 +3,7 @@
 //! This module maps each subcommand to its file in `cli/`. Each command owns
 //! its own output and exit code.
 
+mod doctor;
 mod hook;
 mod stats;
 
@@ -14,6 +15,8 @@ use std::process;
 pub enum Args {
   /// Answer one harness hook call: hook JSON on stdin, reply on stdout.
   Hook(hook::Args),
+  /// Check that rules load, tools are installed, and harnesses call ahok.
+  Doctor,
   /// Print hook latency percentiles and rule hit counts.
   Stats,
 }
@@ -22,6 +25,7 @@ impl Args {
   /// Runs the chosen subcommand.
   pub fn run(self) -> process::ExitCode {
     match self {
+      Self::Doctor => doctor::run(),
       Self::Hook(args) => args.run(),
       Self::Stats => stats::run(),
     }
