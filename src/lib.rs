@@ -4,6 +4,7 @@
 //! it never prints, never exits, and has no dependency on `clap`. The `ahok`
 //! binary owns argument parsing, I/O streams, and exit codes.
 
+pub mod dirs;
 pub mod event;
 pub mod harness;
 pub mod rules;
