@@ -7,6 +7,7 @@ use std::path;
 
 use serde_json;
 
+use crate::dispatch;
 use crate::event;
 use crate::harness;
 use crate::rules;
@@ -78,6 +79,27 @@ pub fn respond(found: Option<&rules::Match>) -> String {
   .to_string()
 }
 
+/// Renders the stdout reply to a `PostToolUse` or `Stop` call whose
+/// built-in checks produced `failures`.
+///
+/// `decision: block` shows the reason to the agent: after an edit it is
+/// feedback, and at `Stop` it keeps the agent working. No failures renders
+/// `{}`.
+#[must_use]
+pub fn feedback(failures: &[dispatch::Failure]) -> String {
+  if failures.is_empty() {
+    return "{}".to_owned();
+  }
+  let mut reason = format!("[ahok] {} check(s) failed.", failures.len());
+  for failure in failures {
+    reason.push_str("\n\n$ ");
+    reason.push_str(&failure.command);
+    reason.push('\n');
+    reason.push_str(&failure.output);
+  }
+  serde_json::json!({ "decision": "block", "reason": reason }).to_string()
+}
+
 /// Maps a Claude Code tool call onto the harness-neutral tool.
 fn tool(name: String, input: ToolInput) -> event::Tool {
   match (name.as_str(), input.command, input.file_path) {
@@ -147,6 +169,22 @@ mod tests {
       "[ahok format-via-fml] Use fml."
     );
     assert_eq!(respond(None), "{}");
+  }
+
+  #[test]
+  fn failures_render_as_block_with_output() {
+    let failures = [dispatch::Failure {
+      command: "fml lint --changed".to_owned(),
+      output: "a.rs:1: bad".to_owned(),
+    }];
+    let reply: serde_json::Value =
+      serde_json::from_str(&feedback(&failures)).unwrap();
+    assert_eq!(reply["decision"], "block");
+    assert_eq!(
+      reply["reason"],
+      "[ahok] 1 check(s) failed.\n\n$ fml lint --changed\na.rs:1: bad"
+    );
+    assert_eq!(feedback(&[]), "{}");
   }
 
   #[test]
