@@ -52,6 +52,11 @@ pub enum Tool {
     /// Files the call creates or changes.
     paths: Vec<path::PathBuf>,
   },
+  /// A skill being loaded into the agent's context.
+  Skill {
+    /// Skill name, such as `rust-guide`.
+    name: String,
+  },
   /// Any other tool, kept by harness name so rules can still match it.
   Other {
     /// Tool name as the harness reports it.

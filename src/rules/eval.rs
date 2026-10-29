@@ -125,6 +125,7 @@ fn tool_is(tool: &event::Tool, name: &str) -> bool {
   match tool {
     event::Tool::Shell { .. } => name == "shell",
     event::Tool::Edit { .. } => name == "edit",
+    event::Tool::Skill { .. } => name == "skill",
     event::Tool::Other { name: other } => other == name,
   }
 }
