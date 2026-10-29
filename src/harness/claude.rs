@@ -164,10 +164,11 @@ mod tests {
   #[test]
   fn skill_tool_becomes_skill() {
     let event = pre_tool("Skill", r#"{"skill":"rust-guide"}"#);
-    assert!(matches!(
-      event.kind,
-      event::Kind::PreToolUse(event::Tool::Skill { name }) if name == "rust-guide"
-    ));
+    let event::Kind::PreToolUse(event::Tool::Skill { name }) = event.kind
+    else {
+      panic!("expected a skill load, got {:?}", event.kind);
+    };
+    assert_eq!(name, "rust-guide");
   }
 
   #[test]
