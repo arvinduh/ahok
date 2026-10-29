@@ -1,17 +1,17 @@
 //! `ahok doctor`: report whether the install works.
 //!
 //! This module prints one line per check from the library's `doctor`
-//! module and turns any failure into exit code 1.
-
-use std::process;
+//! module and reports `Failed` if any check failed.
 
 use ahok::doctor;
 
-/// Prints every check; exits 1 if any check failed.
+use crate::cli;
+
+/// Prints every check; `Failed` if any check failed.
 ///
 /// A free function rather than `Args::run`, since the command takes no
 /// arguments.
-pub fn run() -> process::ExitCode {
+pub fn run() -> cli::Status {
   let checks = doctor::run();
   for check in &checks {
     let label = match check.status {
@@ -21,12 +21,12 @@ pub fn run() -> process::ExitCode {
     };
     println!("{label} {:<8} {}", check.name, check.detail);
   }
-  if checks
+  let failed = checks
     .iter()
-    .any(|check| check.status == doctor::Status::Fail)
-  {
-    process::ExitCode::FAILURE
+    .any(|check| check.status == doctor::Status::Fail);
+  if failed {
+    cli::Status::Failed
   } else {
-    process::ExitCode::SUCCESS
+    cli::Status::Clean
   }
 }

@@ -1,13 +1,14 @@
 //! Command routing for the `ahok` binary.
 //!
 //! This module maps each subcommand to its file in `cli/`. Each command owns
-//! its own output and exit code.
+//! its own output; `main` maps the outcome onto an exit code.
 
 mod doctor;
 mod hook;
 mod stats;
 
-use std::process;
+use std::io;
+use std::path;
 
 /// Control plane for coding-agent harness hooks.
 #[derive(clap::Parser)]
@@ -21,12 +22,32 @@ pub enum Args {
   Stats,
 }
 
+/// How a command that ran to completion ended.
+pub enum Status {
+  /// Nothing to report: exit 0.
+  Clean,
+  /// The command found a problem, such as a failed doctor check: exit 1.
+  Failed,
+}
+
+/// Why a command could not run.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+  #[error("no state directory: set XDG_STATE_HOME or HOME")]
+  NoState,
+  #[error("{}: {source}", path.display())]
+  Read {
+    path: path::PathBuf,
+    source: io::Error,
+  },
+}
+
 impl Args {
   /// Runs the chosen subcommand.
-  pub fn run(self) -> process::ExitCode {
+  pub fn run(self) -> Result<Status, Error> {
     match self {
-      Self::Doctor => doctor::run(),
-      Self::Hook(args) => args.run(),
+      Self::Doctor => Ok(doctor::run()),
+      Self::Hook(args) => Ok(args.run()),
       Self::Stats => stats::run(),
     }
   }
