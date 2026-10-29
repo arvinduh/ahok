@@ -1,7 +1,7 @@
 //! `ahok doctor`: report whether the install works.
 //!
-//! This module prints one line per check from the library's `doctor`
-//! module and reports `Failed` if any check failed.
+//! This module prints one line per check from the `doctor` crate and
+//! reports `Failed` if any check failed.
 
 use doctor;
 

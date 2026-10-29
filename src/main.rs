@@ -1,7 +1,8 @@
 //! The `ahok` binary: the process host.
 //!
 //! This file parses arguments and maps the command's outcome onto an exit
-//! code. Commands live in `cli`; policy lives in the `ahok` library.
+//! code. Commands live in `cli`; policy lives in the
+//! crates under `crates/`.
 
 mod cli;
 

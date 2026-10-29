@@ -23,14 +23,7 @@ dependencies = [
  "ahok-rules",
  "ahok-state",
  "clap",
- "globset",
- "regex",
- "serde",
- "serde_json",
  "thiserror",
- "toml",
- "tree-sitter",
- "tree-sitter-bash",
 ]
 
 [[package]]
