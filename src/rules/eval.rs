@@ -113,3 +113,77 @@ fn has_words(argv: &[String], pattern: &str) -> bool {
   let mut rest = rest.iter();
   first == program && words.all(|word| rest.any(|arg| arg == word))
 }
+
+#[cfg(test)]
+mod tests {
+  use std::path;
+
+  use super::*;
+
+  fn fixture_rules() -> Vec<rules::Rule> {
+    let dir = path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    rules::load(&dir.join("tests/fixtures/rules")).unwrap()
+  }
+
+  fn shell(command: &str) -> event::Event {
+    event::Event {
+      session_id: "s1".to_owned(),
+      kind: event::Kind::PreToolUse(event::Tool::Shell {
+        command: command.to_owned(),
+      }),
+    }
+  }
+
+  fn decide(command: &str, cloud: bool) -> Option<(String, rules::Decision)> {
+    let rules = fixture_rules();
+    let var_set = |var: &str| cloud && var == "CLAUDE_CODE_REMOTE";
+    let env = Env {
+      os: "linux",
+      var_set: &var_set,
+    };
+    evaluate(&rules, &shell(command), &env)
+      .map(|found| (found.id.to_owned(), found.decision))
+  }
+
+  #[test]
+  fn commit_asks_locally_and_is_skipped_in_cloud() {
+    let local = decide("cd x && git commit -m 'feat(a): b'", false);
+    assert_eq!(
+      local,
+      Some(("no-unapproved-commit".to_owned(), rules::Decision::Ask))
+    );
+    assert_eq!(decide("git commit -m x", true), None);
+  }
+
+  #[test]
+  fn deny_beats_ask() {
+    let found = decide("git commit -m x && rustfmt a.rs", false);
+    assert_eq!(found.unwrap().1, rules::Decision::Deny);
+  }
+
+  #[test]
+  fn words_inside_quotes_are_not_commands() {
+    assert_eq!(decide("echo 'git commit'", false), None);
+  }
+
+  #[test]
+  fn os_restricted_rule_skips_other_os() {
+    assert_eq!(decide("python3 <<EOF\nx\nEOF", false), None);
+  }
+
+  #[test]
+  fn has_words_needs_program_and_ordered_words() {
+    let argv = |line: &str| -> Vec<String> {
+      line.split(' ').map(str::to_owned).collect()
+    };
+    assert!(has_words(
+      &argv("git push origin --force"),
+      "git push --force"
+    ));
+    assert!(!has_words(
+      &argv("git push --force-with-lease"),
+      "git push --force"
+    ));
+    assert!(!has_words(&argv("jj push --force"), "git push --force"));
+  }
+}
