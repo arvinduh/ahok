@@ -15,6 +15,7 @@ dependencies = [
 name = "ahok"
 version = "0.1.0"
 dependencies = [
+ "ahok-dispatch",
  "ahok-event",
  "clap",
  "globset",
@@ -26,6 +27,10 @@ dependencies = [
  "tree-sitter",
  "tree-sitter-bash",
 ]
+
+[[package]]
+name = "ahok-dispatch"
+version = "0.1.0"
 
 [[package]]
 name = "ahok-event"

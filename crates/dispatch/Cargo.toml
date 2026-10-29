@@ -1,0 +1,11 @@
+[package]
+name = "ahok-dispatch"
+description = "Checks the hook runs after edits and at the end of a turn"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true

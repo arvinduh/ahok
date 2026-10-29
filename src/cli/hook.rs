@@ -11,12 +11,12 @@ use std::path;
 use std::time;
 
 use ahok::dirs;
-use ahok::dispatch;
 use ahok::harness;
 use ahok::journal;
 use ahok::rules;
 use ahok::session;
 use clap;
+use dispatch;
 use event;
 use thiserror;
 

@@ -7,7 +7,6 @@
 #![deny(clippy::print_stdout, clippy::print_stderr)]
 
 pub mod dirs;
-pub mod dispatch;
 pub mod doctor;
 pub mod harness;
 pub mod journal;
