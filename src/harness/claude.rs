@@ -5,11 +5,11 @@
 
 use std::path;
 
+use event;
 use serde;
 use serde_json;
 
 use crate::dispatch;
-use crate::event;
 use crate::harness;
 use crate::rules;
 

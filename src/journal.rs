@@ -8,10 +8,9 @@ use std::fs;
 use std::io;
 use std::path;
 
+use event;
 use serde;
 use serde_json;
-
-use crate::event;
 
 /// One hook call, as logged to `decisions.jsonl`.
 #[derive(serde::Serialize)]

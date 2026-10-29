@@ -15,6 +15,7 @@ dependencies = [
 name = "ahok"
 version = "0.1.0"
 dependencies = [
+ "ahok-event",
  "clap",
  "globset",
  "regex",
@@ -24,6 +25,13 @@ dependencies = [
  "toml",
  "tree-sitter",
  "tree-sitter-bash",
+]
+
+[[package]]
+name = "ahok-event"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

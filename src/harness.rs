@@ -6,10 +6,9 @@
 
 pub mod claude;
 
+use event;
 use serde_json;
 use thiserror;
-
-use crate::event;
 
 /// Why a hook payload could not become an `event::Event`.
 #[derive(Debug, thiserror::Error)]

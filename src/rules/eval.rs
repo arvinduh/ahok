@@ -8,7 +8,8 @@ use std::fs;
 use std::path;
 use std::slice;
 
-use crate::event;
+use event;
+
 use crate::rules;
 use crate::session;
 use crate::shell;
