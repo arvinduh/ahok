@@ -1,0 +1,33 @@
+[[rule]]
+id = "format-via-fml"
+event = "PreToolUse"
+tool = "shell"
+match_commands = ["rustfmt", "ruff format", "prettier"]
+decision = "deny"
+reason = "Use `fml fmt <path>`."
+
+[[rule]]
+id = "skill-dispatch-rust"
+event = "PreToolUse"
+tool = ["edit"]
+match_files = ["*.rs"]
+require_skill = "rust-guide"
+once_per_session = true
+
+[[rule]]
+id = "no-shell-heredoc-scripts"
+event = "PreToolUse"
+tool = "shell"
+match_pattern = '''<<-?\s*['"]?[A-Za-z0-9_]+['"]?'''
+os = "windows"
+decision = "deny"
+reason = "Write multi-line scripts with your file tool."
+
+[[rule]]
+id = "bounded-file-read"
+event = "PreToolUse"
+tool = "shell"
+match_commands = ["cat"]
+max_file_bytes = 8000
+decision = "deny"
+reason = "Read a bounded line range instead."
