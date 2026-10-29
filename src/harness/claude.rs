@@ -15,13 +15,18 @@ use crate::rules;
 /// The fields of a Claude Code hook payload that rules read.
 #[derive(serde::Deserialize)]
 struct Payload {
+  /// Claude Code's session id.
   session_id: String,
+  /// Directory the session works in.
   #[serde(default)]
   cwd: path::PathBuf,
+  /// Tool name, such as `Bash`; empty for non-tool events.
   #[serde(default)]
   tool_name: String,
+  /// The tool's arguments.
   #[serde(default)]
   tool_input: ToolInput,
+  /// Set when a Stop hook already blocked this stop.
   #[serde(default)]
   stop_hook_active: bool,
 }
@@ -29,8 +34,11 @@ struct Payload {
 /// The `tool_input` fields used by `Bash` and the file-editing tools.
 #[derive(Default, serde::Deserialize)]
 struct ToolInput {
+  /// `Bash` command line.
   command: Option<String>,
+  /// File an editing tool writes.
   file_path: Option<path::PathBuf>,
+  /// Skill the `Skill` tool loads.
   skill: Option<String>,
 }
 

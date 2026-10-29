@@ -36,8 +36,11 @@ pub struct Summary {
 /// logs keep working when fields are added.
 #[derive(serde::Deserialize)]
 struct Entry {
+  /// Hook event name.
   event: String,
+  /// Id of the deciding rule, if any.
   rule: Option<String>,
+  /// Time spent in ahok, in microseconds.
   micros: u64,
 }
 
