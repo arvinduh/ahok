@@ -6,6 +6,7 @@
 
 pub mod dirs;
 pub mod dispatch;
+pub mod doctor;
 pub mod event;
 pub mod harness;
 pub mod journal;
