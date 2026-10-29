@@ -30,6 +30,7 @@ missing_docs_in_private_items = "warn"
 redundant_clone = "warn"
 
 [workspace.dependencies]
+dispatch = { path = "crates/dispatch", package = "ahok-dispatch" }
 event = { path = "crates/event", package = "ahok-event" }
 globset = { version = "0.4.21", default-features = false }
 regex = "1.13.1"
@@ -61,6 +62,7 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+dispatch.workspace = true
 event.workspace = true
 clap.workspace = true
 globset.workspace = true
