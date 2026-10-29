@@ -75,8 +75,8 @@ pub fn respond(found: Option<&rules::Match>) -> String {
     return "{}".to_owned();
   };
   let decision = match found.decision {
-    rules::Decision::Deny => "deny",
-    rules::Decision::Ask => "ask",
+    event::Decision::Deny => "deny",
+    event::Decision::Ask => "ask",
   };
   let reason = match (found.reason, found.require_skill) {
     (Some(reason), _) => reason.to_owned(),
@@ -184,7 +184,7 @@ mod tests {
   fn deny_renders_permission_decision() {
     let found = rules::Match {
       id: "format-via-fml",
-      decision: rules::Decision::Deny,
+      decision: event::Decision::Deny,
       reason: Some("Use fml."),
       require_skill: None,
       once: false,

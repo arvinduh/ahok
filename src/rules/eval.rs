@@ -19,7 +19,7 @@ pub struct Match<'a> {
   /// The rule's `id`, for the decision log.
   pub id: &'a str,
   /// What to do with the call.
-  pub decision: rules::Decision,
+  pub decision: event::Decision,
   /// Why, for the agent.
   pub reason: Option<&'a str>,
   /// The skill the rule wants loaded, for a default reason.
@@ -67,7 +67,7 @@ pub fn evaluate<'a>(
       }
       let decision = match rule.require_skill.as_deref() {
         Some(skill) if env.session.has_skill(skill) => return None,
-        Some(_) => rule.decision.unwrap_or(rules::Decision::Deny),
+        Some(_) => rule.decision.unwrap_or(event::Decision::Deny),
         None => rule.decision?,
       };
       Some(Match {
@@ -186,7 +186,7 @@ mod tests {
     }
   }
 
-  fn decide(command: &str, cloud: bool) -> Option<(String, rules::Decision)> {
+  fn decide(command: &str, cloud: bool) -> Option<(String, event::Decision)> {
     let rules = fixture_rules();
     let var_set = |var: &str| cloud && var == "CLAUDE_CODE_REMOTE";
     let env = Env {
@@ -203,7 +203,7 @@ mod tests {
     let local = decide("cd x && git commit -m 'feat(a): b'", false);
     assert_eq!(
       local,
-      Some(("no-unapproved-commit".to_owned(), rules::Decision::Ask))
+      Some(("no-unapproved-commit".to_owned(), event::Decision::Ask))
     );
     assert_eq!(decide("git commit -m x", true), None);
   }
@@ -211,7 +211,7 @@ mod tests {
   #[test]
   fn deny_beats_ask() {
     let found = decide("git commit -m x && rustfmt a.rs", false);
-    assert_eq!(found.unwrap().1, rules::Decision::Deny);
+    assert_eq!(found.unwrap().1, event::Decision::Deny);
   }
 
   #[test]

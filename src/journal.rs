@@ -11,7 +11,7 @@ use std::path;
 use serde;
 use serde_json;
 
-use crate::rules;
+use crate::event;
 
 /// One hook call, as logged to `decisions.jsonl`.
 #[derive(serde::Serialize)]
@@ -25,7 +25,7 @@ pub struct Decision<'a> {
   /// Id of the deciding rule; absent when the call was allowed.
   pub rule: Option<&'a str>,
   /// The decision; absent means allow.
-  pub decision: Option<rules::Decision>,
+  pub decision: Option<event::Decision>,
   /// Time spent in ahok, in microseconds.
   pub micros: u64,
 }
@@ -76,7 +76,7 @@ mod tests {
       harness: "claude",
       event: "PreToolUse",
       rule: Some("format-via-fml"),
-      decision: Some(rules::Decision::Deny),
+      decision: Some(event::Decision::Deny),
       micros: 420,
     };
     decision(&dir, &entry).unwrap();
