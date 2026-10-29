@@ -25,16 +25,19 @@ pub enum Error {
 }
 
 /// Builds the `event::Kind` for `name`, calling `tool` only for tool events.
+///
+/// `already_blocked` is only used for `Stop`.
 fn kind(
   name: &str,
   tool: impl FnOnce() -> event::Tool,
+  already_blocked: bool,
 ) -> Result<event::Kind, Error> {
   Ok(match name {
     "PreToolUse" => event::Kind::PreToolUse(tool()),
     "PostToolUse" => event::Kind::PostToolUse(tool()),
     "PostToolUseFailure" => event::Kind::PostToolUseFailure(tool()),
     "SessionStart" => event::Kind::SessionStart,
-    "Stop" => event::Kind::Stop,
+    "Stop" => event::Kind::Stop { already_blocked },
     "PreInvocation" => event::Kind::PreInvocation,
     _ => {
       return Err(Error::UnknownEvent {
