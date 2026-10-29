@@ -30,6 +30,7 @@ missing_docs_in_private_items = "warn"
 redundant_clone = "warn"
 
 [workspace.dependencies]
+state = { path = "crates/state", package = "ahok-state" }
 link = { path = "crates/link", package = "ahok-link" }
 dispatch = { path = "crates/dispatch", package = "ahok-dispatch" }
 event = { path = "crates/event", package = "ahok-event" }
@@ -63,6 +64,7 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+state.workspace = true
 link.workspace = true
 dispatch.workspace = true
 event.workspace = true

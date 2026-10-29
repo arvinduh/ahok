@@ -9,9 +9,9 @@ use std::path;
 use std::slice;
 
 use event;
+use state::session;
 
 use crate::rules;
-use crate::session;
 use crate::shell;
 
 /// The rule that decided an event.
