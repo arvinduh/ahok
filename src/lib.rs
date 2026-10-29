@@ -5,6 +5,7 @@
 //! binary owns argument parsing, I/O streams, and exit codes.
 
 pub mod dirs;
+pub mod dispatch;
 pub mod event;
 pub mod harness;
 pub mod journal;
