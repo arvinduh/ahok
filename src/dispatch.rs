@@ -132,3 +132,31 @@ fn tail(text: &str) -> String {
   let lines: Vec<_> = text.trim_end().lines().collect();
   lines[lines.len().saturating_sub(TAIL_LINES)..].join("\n")
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[cfg(unix)]
+  #[test]
+  fn failing_command_keeps_output_tail() {
+    let script = "seq 1 50; echo boom >&2; exit 1";
+    let failure = run(path::Path::new(""), command("sh", &["-c", script]));
+    let failure = failure.unwrap();
+    assert!(failure.command.starts_with("sh -c"));
+    assert_eq!(failure.output.lines().count(), TAIL_LINES);
+    assert!(failure.output.ends_with("50\nboom"));
+  }
+
+  #[cfg(unix)]
+  #[test]
+  fn passing_command_is_not_a_failure() {
+    assert!(run(path::Path::new(""), command("true", &[])).is_none());
+  }
+
+  #[test]
+  fn missing_program_is_not_a_failure() {
+    let missing = command("ahok-no-such-program", &[]);
+    assert!(run(path::Path::new(""), missing).is_none());
+  }
+}
