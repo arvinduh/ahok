@@ -27,10 +27,19 @@ pub struct Event {
 pub struct Summary {
   /// One row per event name, sorted by name.
   pub events: Vec<Event>,
-  /// Rule ids and how often each decided a call, most hits first.
-  pub rules: Vec<(String, usize)>,
+  /// One row per rule that decided a call, most hits first.
+  pub rules: Vec<RuleHits>,
   /// Lines that weren't valid log entries.
   pub skipped: usize,
+}
+
+/// How often one rule decided a call.
+#[derive(Debug)]
+pub struct RuleHits {
+  /// The rule's id.
+  pub id: String,
+  /// Number of calls it decided.
+  pub hits: usize,
 }
 
 /// The fields of a log line the summary reads; others are ignored, so old
@@ -73,8 +82,11 @@ pub fn summarize(log: &str) -> Summary {
       }
     })
     .collect();
-  let mut rules: Vec<_> = hits.into_iter().collect();
-  rules.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+  let mut rules: Vec<_> = hits
+    .into_iter()
+    .map(|(id, hits)| RuleHits { id, hits })
+    .collect();
+  rules.sort_by(|a, b| b.hits.cmp(&a.hits).then_with(|| a.id.cmp(&b.id)));
   Summary {
     events,
     rules,
@@ -113,6 +125,11 @@ mod tests {
     assert_eq!((pre.name.as_str(), pre.calls), ("PreToolUse", 101));
     assert_eq!((pre.p50_micros, pre.p99_micros), (50, 99));
     assert_eq!(summary.events[1].p99_micros, 7);
-    assert_eq!(summary.rules, [("a".to_owned(), 1), ("b".to_owned(), 1)]);
+    let rules: Vec<_> = summary
+      .rules
+      .iter()
+      .map(|rule| (rule.id.as_str(), rule.hits))
+      .collect();
+    assert_eq!(rules, [("a", 1), ("b", 1)]);
   }
 }

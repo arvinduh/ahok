@@ -36,8 +36,8 @@ pub fn run() -> Result<cli::Status, cli::Error> {
       millis(event.p99_micros)
     );
   }
-  for (rule, hits) in &summary.rules {
-    println!("{rule:<32} {hits:>7} hits");
+  for rule in &summary.rules {
+    println!("{:<32} {:>7} hits", rule.id, rule.hits);
   }
   if summary.skipped > 0 {
     println!("skipped {} malformed line(s)", summary.skipped);
