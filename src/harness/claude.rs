@@ -31,6 +31,7 @@ struct Payload {
 struct ToolInput {
   command: Option<String>,
   file_path: Option<path::PathBuf>,
+  skill: Option<String>,
 }
 
 /// Parses the payload Claude Code sends on stdin for hook `event_name`.
@@ -102,11 +103,12 @@ pub fn feedback(failures: &[dispatch::Failure]) -> String {
 
 /// Maps a Claude Code tool call onto the harness-neutral tool.
 fn tool(name: String, input: ToolInput) -> event::Tool {
-  match (name.as_str(), input.command, input.file_path) {
-    ("Bash", Some(command), _) => event::Tool::Shell { command },
-    ("Edit" | "Write" | "MultiEdit", _, Some(path)) => {
+  match (name.as_str(), input.command, input.file_path, input.skill) {
+    ("Bash", Some(command), _, _) => event::Tool::Shell { command },
+    ("Edit" | "Write" | "MultiEdit", _, Some(path), _) => {
       event::Tool::Edit { paths: vec![path] }
     }
+    ("Skill", _, _, Some(name)) => event::Tool::Skill { name },
     _ => event::Tool::Other { name },
   }
 }
@@ -141,6 +143,15 @@ mod tests {
       event.kind,
       event::Kind::PreToolUse(event::Tool::Edit { paths })
         if paths == [path::PathBuf::from("/a.rs")]
+    ));
+  }
+
+  #[test]
+  fn skill_tool_becomes_skill() {
+    let event = pre_tool("Skill", r#"{"skill":"rust-guide"}"#);
+    assert!(matches!(
+      event.kind,
+      event::Kind::PreToolUse(event::Tool::Skill { name }) if name == "rust-guide"
     ));
   }
 
