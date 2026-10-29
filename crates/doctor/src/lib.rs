@@ -1,8 +1,10 @@
 //! Health checks for an ahok install.
 //!
-//! This module checks what the hook depends on: the rules load, the tools
+//! This crate checks what the hook depends on: the rules load, the tools
 //! it runs are on `PATH`, and each harness config calls `ahok hook`. It
 //! returns results as data; printing them belongs to `ahok doctor`.
+
+#![deny(clippy::print_stdout, clippy::print_stderr)]
 
 use std::env;
 use std::fs;

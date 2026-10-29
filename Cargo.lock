@@ -16,6 +16,7 @@ name = "ahok"
 version = "0.1.0"
 dependencies = [
  "ahok-dispatch",
+ "ahok-doctor",
  "ahok-event",
  "ahok-harness",
  "ahok-link",
@@ -35,6 +36,14 @@ dependencies = [
 [[package]]
 name = "ahok-dispatch"
 version = "0.1.0"
+
+[[package]]
+name = "ahok-doctor"
+version = "0.1.0"
+dependencies = [
+ "ahok-rules",
+ "ahok-state",
+]
 
 [[package]]
 name = "ahok-event"

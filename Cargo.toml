@@ -30,6 +30,7 @@ missing_docs_in_private_items = "warn"
 redundant_clone = "warn"
 
 [workspace.dependencies]
+doctor = { path = "crates/doctor", package = "ahok-doctor" }
 harness = { path = "crates/harness", package = "ahok-harness" }
 rules = { path = "crates/rules", package = "ahok-rules" }
 state = { path = "crates/state", package = "ahok-state" }
@@ -66,6 +67,7 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+doctor.workspace = true
 harness.workspace = true
 rules.workspace = true
 state.workspace = true
