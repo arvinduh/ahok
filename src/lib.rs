@@ -12,3 +12,4 @@ pub mod journal;
 pub mod rules;
 pub mod session;
 pub mod shell;
+pub mod stats;
