@@ -6,3 +6,4 @@
 
 pub mod event;
 pub mod harness;
+pub mod shell;
