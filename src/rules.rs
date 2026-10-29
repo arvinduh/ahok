@@ -9,7 +9,27 @@
   reason = "the evaluator reads rule fields as each rule kind is wired up"
 )]
 
+use std::fs;
+use std::io;
+use std::path;
+
 use toml;
+
+/// Why the rules directory could not be loaded.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+  /// The directory or a file in it could not be read.
+  #[error(transparent)]
+  Io(#[from] io::Error),
+  /// A rules file is not valid TOML or does not match the schema.
+  #[error("{}: {source}", path.display())]
+  Parse {
+    /// The offending file.
+    path: path::PathBuf,
+    /// What the parser rejected.
+    source: toml::de::Error,
+  },
+}
 
 /// One `[[rule]]` table, exactly as written in a rules file.
 #[derive(Debug, serde::Deserialize)]
@@ -103,9 +123,36 @@ fn parse(text: &str) -> Result<Vec<Rule>, toml::de::Error> {
   toml::from_str::<File>(text).map(|file| file.rule)
 }
 
+/// Loads every `*.toml` file in `dir`, in file-name order.
+///
+/// # Errors
+///
+/// `Error::Io` if `dir` or a file in it can't be read, and `Error::Parse`
+/// naming the first file that fails to parse.
+pub fn load(dir: &path::Path) -> Result<Vec<Rule>, Error> {
+  let mut paths = fs::read_dir(dir)?
+    .map(|entry| entry.map(|entry| entry.path()))
+    .collect::<io::Result<Vec<_>>>()?;
+  paths.retain(|path| path.extension().is_some_and(|ext| ext == "toml"));
+  paths.sort();
+  let mut rules = Vec::new();
+  for path in paths {
+    let text = fs::read_to_string(&path)?;
+    match parse(&text) {
+      Ok(file_rules) => rules.extend(file_rules),
+      Err(source) => return Err(Error::Parse { path, source }),
+    }
+  }
+  Ok(rules)
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  fn fixtures() -> path::PathBuf {
+    path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/rules")
+  }
 
   #[test]
   fn parses_shell_and_edit_rules() {
@@ -135,5 +182,27 @@ mod tests {
   fn unknown_field_is_rejected() {
     let text = "[[rule]]\nid = \"x\"\nevent = \"PreToolUse\"\ntypo = 1\n";
     assert!(parse(text).is_err());
+  }
+
+  #[test]
+  fn loads_files_in_name_order() {
+    let rules = load(&fixtures()).unwrap();
+    assert_eq!(rules.len(), 8);
+    assert_eq!(rules[0].id, "no-unapproved-commit");
+    assert_eq!(rules[4].id, "format-via-fml");
+  }
+
+  #[test]
+  fn parse_error_names_the_file() {
+    let dir = std::env::temp_dir().join("ahok-rules-bad");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+      dir.join("bad.toml"),
+      "[[rule]]
+",
+    )
+    .unwrap();
+    let err = load(&dir).unwrap_err().to_string();
+    assert!(err.starts_with(&dir.join("bad.toml").display().to_string()));
   }
 }
