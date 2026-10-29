@@ -9,9 +9,8 @@ use std::fs;
 use std::path;
 use std::process;
 
+use rules;
 use state::dirs;
-
-use crate::rules;
 
 /// How a check came out.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
