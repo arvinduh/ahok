@@ -16,7 +16,9 @@ use serde_json;
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct State {
+  /// Skills the session loaded.
   skills: collections::BTreeSet<String>,
+  /// Once-per-session rules that already fired.
   fired: collections::BTreeSet<String>,
 }
 

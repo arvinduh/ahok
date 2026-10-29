@@ -33,11 +33,15 @@ pub enum Status {
 /// Why a command could not run.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+  /// No state directory could be located.
   #[error("no state directory: set XDG_STATE_HOME or HOME")]
   NoState,
+  /// A state file exists but could not be read.
   #[error("{}: {source}", path.display())]
   Read {
+    /// The file that failed.
     path: path::PathBuf,
+    /// Why reading it failed.
     source: io::Error,
   },
 }

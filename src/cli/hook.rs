@@ -33,16 +33,22 @@ pub struct Args {
 /// Why a hook call failed open.
 #[derive(Debug, thiserror::Error)]
 enum Error {
+  /// The payload could not be read from stdin.
   #[error("reading stdin: {0}")]
   Stdin(#[from] io::Error),
+  /// The payload is not a valid hook call.
   #[error(transparent)]
   Harness(#[from] harness::Error),
+  /// The rules directory failed to load.
   #[error(transparent)]
   Rules(#[from] rules::Error),
+  /// The harness argument names no adapter.
   #[error("unsupported harness `{0}`")]
   UnknownHarness(String),
+  /// The session file could not be read.
   #[error("session state: {0}")]
   Session(io::Error),
+  /// No config directory could be located.
   #[error("no config directory: set AHOK_CONFIG_DIR or HOME")]
   NoConfig,
 }

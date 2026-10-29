@@ -44,32 +44,53 @@ pub enum Error {
 #[derive(Debug, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Rule {
+  /// Unique name, shown to the agent and logged.
   id: String,
+  /// Where the rule is checked.
   event: Event,
+  /// Tools the rule applies to; any tool when unset.
   tool: Option<Tools>,
+  /// Programs plus words, matched against each simple command's argv.
   #[serde(default)]
   match_commands: Vec<String>,
+  /// Regex matched against the whole shell command line.
   #[serde(default, deserialize_with = "compile_regex")]
   match_pattern: Option<regex::Regex>,
+  /// Globs matched against the paths an edit writes.
   #[serde(default, deserialize_with = "compile_globs")]
   match_files: Option<globset::GlobSet>,
+  /// What to do with a matching call.
   decision: Option<Decision>,
+  /// Why, shown to the agent.
   reason: Option<String>,
+  /// Only on this OS, as in `std::env::consts::OS`.
   os: Option<String>,
+  /// Deny until the session loads this skill.
   require_skill: Option<String>,
+  /// Stop matching after firing once in a session.
   #[serde(default)]
   once_per_session: bool,
+  /// The git hook a `GitHook` rule runs in.
   hook: Option<GitHook>,
+  /// Regex the commit subject must match.
   pattern: Option<String>,
+  /// Commit-message tag that exempts the commit.
   allow_tag: Option<String>,
+  /// Most net lines a staged diff may change.
   max_net_lines: Option<u32>,
+  /// Paths left out of the diff count.
   #[serde(default)]
   exclude_globs: Vec<String>,
+  /// Environment variable that exempts the commit.
   allow_env: Option<String>,
+  /// Skip the rule while this variable is set.
   skip_if_env: Option<String>,
+  /// Match only when an argument names a larger file.
   max_file_bytes: Option<u64>,
+  /// Branches a push may not target.
   #[serde(default)]
   protected_branches: Vec<String>,
+  /// Behavior when ahok fails while checking the rule.
   fail: Option<Fail>,
 }
 
@@ -157,6 +178,7 @@ fn compile_globs<'de, D: serde::Deserializer<'de>>(
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct File {
+  /// Every `[[rule]]` table, in file order.
   rule: Vec<Rule>,
 }
 
