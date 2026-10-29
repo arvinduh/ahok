@@ -13,6 +13,8 @@ use std::process;
 use std::time;
 
 use ahok::dirs;
+use ahok::dispatch;
+use ahok::event;
 use ahok::harness;
 use ahok::journal;
 use ahok::rules;
@@ -63,8 +65,11 @@ impl Args {
     process::ExitCode::SUCCESS
   }
 
-  /// Parses the payload, evaluates the rules, logs the decision, and
+  /// Parses the payload, runs what the event calls for, logs the call, and
   /// returns the reply.
+  ///
+  /// `PreToolUse` evaluates the rules; `PostToolUse` on an edit formats the
+  /// files; `Stop` runs the gate unless a Stop hook already blocked once.
   fn decide(
     &self,
     start: time::Instant,
@@ -77,22 +82,38 @@ impl Args {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input)?;
     let event = harness::claude::parse(&self.event, &input)?;
-    let config = dirs::config().ok_or(Error::NoConfig)?;
-    let rules = rules::load(&config.join("rules"))?;
-    let var_set = |name: &str| env::var_os(name).is_some();
-    let env = rules::Env {
-      os: env::consts::OS,
-      var_set: &var_set,
+    let (reply, found) = match &event.kind {
+      event::Kind::PreToolUse(_) => {
+        let config = dirs::config().ok_or(Error::NoConfig)?;
+        let rules = rules::load(&config.join("rules"))?;
+        let var_set = |name: &str| env::var_os(name).is_some();
+        let env = rules::Env {
+          os: env::consts::OS,
+          var_set: &var_set,
+        };
+        let found = rules::evaluate(&rules, &event, &env);
+        let reply = harness::claude::respond(found.as_ref());
+        (
+          reply,
+          found.map(|found| (found.id.to_owned(), found.decision)),
+        )
+      }
+      event::Kind::PostToolUse(event::Tool::Edit { paths }) => {
+        let failure = dispatch::format(&event.cwd, paths);
+        (harness::claude::feedback(failure.as_slice()), None)
+      }
+      event::Kind::Stop {
+        already_blocked: false,
+      } => (harness::claude::feedback(&dispatch::gate(&event.cwd)), None),
+      _ => ("{}".to_owned(), None),
     };
-    let found = rules::evaluate(&rules, &event, &env);
-    let reply = harness::claude::respond(found.as_ref());
     if let Some(dir) = state {
       let entry = journal::Decision {
         unix_ms,
         harness: &self.harness,
         event: &self.event,
-        rule: found.as_ref().map(|found| found.id),
-        decision: found.as_ref().map(|found| found.decision),
+        rule: found.as_ref().map(|(id, _)| id.as_str()),
+        decision: found.as_ref().map(|&(_, decision)| decision),
         micros: u64::try_from(start.elapsed().as_micros()).unwrap_or(u64::MAX),
       };
       if let Err(err) = journal::decision(dir, &entry) {
