@@ -76,6 +76,9 @@ fn applies(
       .tool
       .as_ref()
       .is_none_or(|tools| names(tools).iter().any(|name| tool_is(tool, name)))
+    && rule.match_pattern.as_ref().is_none_or(|pattern| {
+      matches!(tool, event::Tool::Shell { command } if pattern.is_match(command))
+    })
     && (rule.match_commands.is_empty()
       || rule
         .match_commands
@@ -169,6 +172,24 @@ mod tests {
   #[test]
   fn os_restricted_rule_skips_other_os() {
     assert_eq!(decide("python3 <<EOF\nx\nEOF", false), None);
+  }
+
+  #[test]
+  fn pattern_matches_the_raw_command() {
+    let rules = fixture_rules();
+    let env = Env {
+      os: "windows",
+      var_set: &|_| false,
+    };
+    let found = evaluate(&rules, &shell("python3 <<'EOF'\nx\nEOF"), &env);
+    assert_eq!(found.unwrap().id, "no-shell-heredoc-scripts");
+  }
+
+  #[test]
+  fn bad_regex_fails_to_parse() {
+    let text =
+      "[[rule]]\nid = \"x\"\nevent = \"PreToolUse\"\nmatch_pattern = '('\n";
+    assert!(rules::parse(text).is_err());
   }
 
   #[test]

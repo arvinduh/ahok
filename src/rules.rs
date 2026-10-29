@@ -13,6 +13,8 @@ use std::fs;
 use std::io;
 use std::path;
 
+use regex;
+use serde;
 use toml;
 
 mod eval;
@@ -46,7 +48,8 @@ pub struct Rule {
   tool: Option<Tools>,
   #[serde(default)]
   match_commands: Vec<String>,
-  match_pattern: Option<String>,
+  #[serde(default, deserialize_with = "compile_regex")]
+  match_pattern: Option<regex::Regex>,
   #[serde(default)]
   match_files: Vec<String>,
   decision: Option<Decision>,
@@ -117,6 +120,16 @@ enum GitHook {
 enum Fail {
   /// Block the call instead of the default fail-open allow.
   Closed,
+}
+
+/// Compiles a regex field, so a bad pattern fails loading with its file.
+fn compile_regex<'de, D: serde::Deserializer<'de>>(
+  deserializer: D,
+) -> Result<Option<regex::Regex>, D::Error> {
+  let pattern = <String as serde::Deserialize>::deserialize(deserializer)?;
+  regex::Regex::new(&pattern)
+    .map(Some)
+    .map_err(<D::Error as serde::de::Error>::custom)
 }
 
 /// The top level of a rules file.
