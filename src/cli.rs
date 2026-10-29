@@ -4,6 +4,7 @@
 //! its own output and exit code.
 
 mod hook;
+mod stats;
 
 use std::process;
 
@@ -13,6 +14,8 @@ use std::process;
 pub enum Args {
   /// Answer one harness hook call: hook JSON on stdin, reply on stdout.
   Hook(hook::Args),
+  /// Print hook latency percentiles and rule hit counts.
+  Stats,
 }
 
 impl Args {
@@ -20,6 +23,7 @@ impl Args {
   pub fn run(self) -> process::ExitCode {
     match self {
       Self::Hook(args) => args.run(),
+      Self::Stats => stats::run(),
     }
   }
 }
