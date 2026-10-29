@@ -5,6 +5,7 @@
 
 use std::path;
 
+use serde;
 use serde_json;
 
 use crate::dispatch;
