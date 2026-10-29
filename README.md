@@ -12,6 +12,16 @@ cargo install --git https://github.com/arvinduh/ahok --locked
 ahok doctor
 ```
 
+Without cargo, such as in a cloud session, download a release binary:
+
+```sh
+curl -fsSL -o ~/.local/bin/ahok --create-dirs \
+  https://github.com/arvinduh/ahok/releases/latest/download/ahok-linux-x86_64
+chmod +x ~/.local/bin/ahok
+```
+
+Windows builds are `ahok-windows-x86_64.exe` on the same release.
+
 ## Claude Code hooks
 
 ```json
