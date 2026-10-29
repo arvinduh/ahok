@@ -1,7 +1,7 @@
 //! `ahok stats`: print hook latency and rule hits from the decision log.
 //!
 //! This module reads `decisions.jsonl` and prints one compact, ANSI-free
-//! summary. The arithmetic lives in the library's `stats` module.
+//! summary. The arithmetic lives in `state::stats`.
 
 use std::fs;
 use std::io;

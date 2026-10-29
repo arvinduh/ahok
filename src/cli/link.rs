@@ -1,6 +1,6 @@
 //! `ahok link`: symlink a config repo's files into place.
 //!
-//! This module prints one row per link from the library's `link` module and
+//! This module prints one row per link from the `link` crate and
 //! reports `Failed` if any link did not resolve.
 
 use std::path;

@@ -3,7 +3,7 @@
 //! This module owns the hook process contract: read the payload from stdin,
 //! always write a JSON reply to stdout, and end `Clean` so the process exits
 //! 0. Any failure is logged to `errors.log` and the call is allowed (fail
-//! open). Parsing, rules, and replies come from the library.
+//! open). Parsing, rules, and replies come from the crates.
 
 use std::env;
 use std::io;
