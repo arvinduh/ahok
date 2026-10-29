@@ -15,6 +15,12 @@ use std::path;
 
 use toml;
 
+mod eval;
+
+pub use eval::Env;
+pub use eval::Match;
+pub use eval::evaluate;
+
 /// Why the rules directory could not be loaded.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -83,10 +89,12 @@ enum Tools {
   Many(Vec<String>),
 }
 
-/// What happens to a call a rule matches.
-#[derive(Debug, serde::Deserialize)]
+/// What happens to a call a rule matches; earlier variants win.
+#[derive(
+  Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize,
+)]
 #[serde(rename_all = "lowercase")]
-enum Decision {
+pub enum Decision {
   /// Block the call and tell the agent why.
   Deny,
   /// Ask the user to approve the call.
