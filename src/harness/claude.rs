@@ -9,6 +9,7 @@ use serde_json;
 
 use crate::event;
 use crate::harness;
+use crate::rules;
 
 /// The fields of a Claude Code hook payload that rules read.
 #[derive(serde::Deserialize)]
@@ -47,6 +48,29 @@ pub fn parse(
     cwd: payload.cwd,
     kind,
   })
+}
+
+/// Renders the stdout reply to a hook call that `found` decided.
+///
+/// No match renders `{}`, which lets the call proceed.
+#[must_use]
+pub fn respond(found: Option<&rules::Match>) -> String {
+  let Some(found) = found else {
+    return "{}".to_owned();
+  };
+  let decision = match found.decision {
+    rules::Decision::Deny => "deny",
+    rules::Decision::Ask => "ask",
+  };
+  let reason = found.reason.unwrap_or(found.id);
+  serde_json::json!({
+    "hookSpecificOutput": {
+      "hookEventName": "PreToolUse",
+      "permissionDecision": decision,
+      "permissionDecisionReason": format!("[ahok {}] {reason}", found.id),
+    }
+  })
+  .to_string()
 }
 
 /// Maps a Claude Code tool call onto the harness-neutral tool.
@@ -100,6 +124,24 @@ mod tests {
       event.kind,
       event::Kind::PreToolUse(event::Tool::Other { name }) if name == "Read"
     ));
+  }
+
+  #[test]
+  fn deny_renders_permission_decision() {
+    let found = rules::Match {
+      id: "format-via-fml",
+      decision: rules::Decision::Deny,
+      reason: Some("Use fml."),
+    };
+    let reply: serde_json::Value =
+      serde_json::from_str(&respond(Some(&found))).unwrap();
+    let output = &reply["hookSpecificOutput"];
+    assert_eq!(output["permissionDecision"], "deny");
+    assert_eq!(
+      output["permissionDecisionReason"],
+      "[ahok format-via-fml] Use fml."
+    );
+    assert_eq!(respond(None), "{}");
   }
 
   #[test]
