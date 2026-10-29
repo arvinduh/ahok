@@ -3,6 +3,7 @@ name = "ahok"
 version = "0.1.0"
 edition = "2024"
 description = "Stateless control plane for coding-agent harness hooks"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/arvinduh/ahok"
 
 [lints.rust]
