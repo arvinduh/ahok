@@ -10,4 +10,5 @@ pub mod event;
 pub mod harness;
 pub mod journal;
 pub mod rules;
+pub mod session;
 pub mod shell;
