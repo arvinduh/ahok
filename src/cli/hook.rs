@@ -18,6 +18,7 @@ use ahok::event;
 use ahok::harness;
 use ahok::journal;
 use ahok::rules;
+use ahok::session;
 
 /// Arguments of `ahok hook`.
 #[derive(clap::Args)]
@@ -87,9 +88,11 @@ impl Args {
         let config = dirs::config().ok_or(Error::NoConfig)?;
         let rules = rules::load(&config.join("rules"))?;
         let var_set = |name: &str| env::var_os(name).is_some();
+        let session = session::State::default();
         let env = rules::Env {
           os: env::consts::OS,
           var_set: &var_set,
+          session: &session,
         };
         let found = rules::evaluate(&rules, &event, &env);
         let reply = harness::claude::respond(found.as_ref());

@@ -10,6 +10,7 @@ use std::slice;
 
 use crate::event;
 use crate::rules;
+use crate::session;
 use crate::shell;
 
 /// The rule that decided an event.
@@ -21,6 +22,10 @@ pub struct Match<'a> {
   pub decision: rules::Decision,
   /// Why, for the agent.
   pub reason: Option<&'a str>,
+  /// The skill the rule wants loaded, for a default reason.
+  pub require_skill: Option<&'a str>,
+  /// Whether the rule fires only once per session, so the caller records it.
+  pub once: bool,
 }
 
 /// Facts outside the event that rules test.
@@ -29,12 +34,16 @@ pub struct Env<'a> {
   pub os: &'a str,
   /// Whether an environment variable is set.
   pub var_set: &'a dyn Fn(&str) -> bool,
+  /// What this harness session has done so far.
+  pub session: &'a session::State,
 }
 
 /// Returns the strongest rule that matches `event`.
 ///
-/// Deny beats ask; among equals, the first rule in load order wins. Rules
-/// without a `decision` never win here.
+/// Deny beats ask; among equals, the first rule in load order wins. A
+/// `require_skill` rule denies until the session loads that skill; a
+/// `once_per_session` rule stops matching after it fired once. Other rules
+/// without a `decision` never win.
 #[must_use]
 pub fn evaluate<'a>(
   rules: &'a [rules::Rule],
@@ -53,10 +62,20 @@ pub fn evaluate<'a>(
     .iter()
     .filter(|rule| applies(rule, tool, &argvs, cwd, env))
     .filter_map(|rule| {
+      if rule.once_per_session && env.session.has_fired(&rule.id) {
+        return None;
+      }
+      let decision = match rule.require_skill.as_deref() {
+        Some(skill) if env.session.has_skill(skill) => return None,
+        Some(_) => rule.decision.unwrap_or(rules::Decision::Deny),
+        None => rule.decision?,
+      };
       Some(Match {
         id: &rule.id,
-        decision: rule.decision?,
+        decision,
         reason: rule.reason.as_deref(),
+        require_skill: rule.require_skill.as_deref(),
+        once: rule.once_per_session,
       })
     })
     .min_by_key(|found| found.decision)
@@ -169,6 +188,7 @@ mod tests {
     let env = Env {
       os: "linux",
       var_set: &var_set,
+      session: &session::State::default(),
     };
     evaluate(&rules, &shell(command), &env)
       .map(|found| (found.id.to_owned(), found.decision))
@@ -206,6 +226,7 @@ mod tests {
     let env = Env {
       os: "windows",
       var_set: &|_| false,
+      session: &session::State::default(),
     };
     let found = evaluate(&rules, &shell("python3 <<'EOF'\nx\nEOF"), &env);
     assert_eq!(found.unwrap().id, "no-shell-heredoc-scripts");
@@ -233,6 +254,7 @@ mod tests {
     let env = Env {
       os: "linux",
       var_set: &|_| false,
+      session: &session::State::default(),
     };
     assert!(evaluate(&rules, &edit("/src/a.rs"), &env).is_some());
     assert!(evaluate(&rules, &edit("/src/a.py"), &env).is_none());
@@ -245,6 +267,7 @@ mod tests {
     let env = Env {
       os: "linux",
       var_set: &|_| false,
+      session: &session::State::default(),
     };
     let mut event = shell("cat Cargo.lock");
     event.cwd = dir.to_owned();
@@ -253,6 +276,30 @@ mod tests {
     let mut event = shell("cat -n .rustfmt.toml");
     event.cwd = dir.to_owned();
     assert!(evaluate(&rules, &event, &env).is_none());
+  }
+
+  #[test]
+  fn require_skill_denies_once_until_loaded() {
+    let rules = fixture_rules();
+    let mut event = shell("");
+    event.kind = event::Kind::PreToolUse(event::Tool::Edit {
+      paths: vec![path::PathBuf::from("src/main.rs")],
+    });
+    let mut state = session::State::default();
+    let decide = |state: &session::State| {
+      let env = Env {
+        os: "linux",
+        var_set: &|_| false,
+        session: state,
+      };
+      evaluate(&rules, &event, &env).map(|found| (found.id, found.once))
+    };
+    assert_eq!(decide(&state), Some(("skill-dispatch-rust", true)));
+    state.add_fired("skill-dispatch-rust");
+    assert_eq!(decide(&state), None);
+    let mut state = session::State::default();
+    state.add_skill("rust-guide");
+    assert_eq!(decide(&state), None);
   }
 
   #[test]

@@ -69,7 +69,13 @@ pub fn respond(found: Option<&rules::Match>) -> String {
     rules::Decision::Deny => "deny",
     rules::Decision::Ask => "ask",
   };
-  let reason = found.reason.unwrap_or(found.id);
+  let reason = match (found.reason, found.require_skill) {
+    (Some(reason), _) => reason.to_owned(),
+    (None, Some(skill)) => {
+      format!("Load the `{skill}` skill with the Skill tool, then retry.")
+    }
+    (None, None) => found.id.to_owned(),
+  };
   serde_json::json!({
     "hookSpecificOutput": {
       "hookEventName": "PreToolUse",
@@ -170,6 +176,8 @@ mod tests {
       id: "format-via-fml",
       decision: rules::Decision::Deny,
       reason: Some("Use fml."),
+      require_skill: None,
+      once: false,
     };
     let reply: serde_json::Value =
       serde_json::from_str(&respond(Some(&found))).unwrap();
