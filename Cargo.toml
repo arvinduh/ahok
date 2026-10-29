@@ -17,6 +17,7 @@ wildcard_imports = "deny"
 single_component_path_imports = "allow"
 dbg_macro = "deny"
 todo = "warn"
+unwrap_used = "warn"
 undocumented_unsafe_blocks = "deny"
 redundant_clone = "warn"
 

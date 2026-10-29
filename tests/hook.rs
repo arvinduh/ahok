@@ -27,16 +27,16 @@ fn run(state: &path::Path, event: &str, payload: &str) -> String {
     .stdin(process::Stdio::piped())
     .stdout(process::Stdio::piped())
     .spawn()
-    .unwrap();
+    .expect("the ahok binary runs");
   child
     .stdin
     .take()
-    .unwrap()
+    .expect("stdin is piped")
     .write_all(payload.as_bytes())
-    .unwrap();
-  let output = child.wait_with_output().unwrap();
+    .expect("the hook reads all of stdin");
+  let output = child.wait_with_output().expect("the hook exits");
   assert!(output.status.success(), "hook must always exit 0");
-  String::from_utf8(output.stdout).unwrap()
+  String::from_utf8(output.stdout).expect("the reply is UTF-8 JSON")
 }
 
 #[test]
