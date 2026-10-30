@@ -53,6 +53,7 @@ pub fn run() -> Vec<Check> {
     "claude",
     &home.join(".claude").join("settings.json"),
   ));
+  checks.push(harness("codex", &home.join(".codex").join("hooks.json")));
   let agy = home.join(".gemini").join("config").join("hooks.json");
   checks.push(harness("agy", &agy));
   checks
