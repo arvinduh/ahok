@@ -5,6 +5,7 @@
 
 mod ci;
 mod doctor;
+mod git;
 mod hook;
 mod link;
 mod stats;
@@ -24,6 +25,9 @@ pub enum Args {
   /// Wait for CI and print one summary.
   #[command(subcommand)]
   Ci(ci::Args),
+  /// Run the git hook rules; called from git's commit-msg and pre-push.
+  #[command(subcommand)]
+  Git(git::Args),
   /// Answer one harness hook call: hook JSON on stdin, reply on stdout.
   Hook(hook::Args),
   /// Check that rules load, tools are installed, and harnesses call ahok.
@@ -80,6 +84,7 @@ impl Args {
     match self {
       Self::Ci(args) => Ok(args.run()?),
       Self::Doctor => Ok(doctor::run()),
+      Self::Git(args) => Ok(args.run()),
       Self::Hook(args) => Ok(args.run()),
       Self::Link(args) => args.run(),
       Self::Stats => stats::run(),
