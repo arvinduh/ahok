@@ -31,6 +31,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ahok-ci"
+version = "0.1.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "ahok-dispatch"
 version = "0.1.1"
 dependencies = [
