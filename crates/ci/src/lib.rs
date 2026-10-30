@@ -72,8 +72,15 @@ pub enum State {
 ///
 /// `Error::Spawn` when `gh` can't start, `Error::Command` when it fails.
 fn api(path: &str) -> Result<String, Error> {
-  let program = "gh";
-  let args = ["api", path];
+  run("gh", &["api", path])
+}
+
+/// Runs `program` with `args` in the current directory; returns stdout.
+///
+/// # Errors
+///
+/// `Error::Spawn` when it can't start, `Error::Command` when it fails.
+fn run(program: &'static str, args: &[&str]) -> Result<String, Error> {
   let output = process::Command::new(program)
     .args(args)
     .stdin(process::Stdio::null())
@@ -194,9 +201,79 @@ pub fn checks(sha: &str) -> Result<Vec<Check>, Error> {
   parse(&runs, &combined)
 }
 
+/// The PR fields `head` reads: `GET /repos/{o}/{r}/pulls/{n}`.
+#[derive(serde::Deserialize)]
+struct Pull {
+  /// The PR's head branch.
+  head: Ref,
+}
+
+/// A branch tip.
+#[derive(serde::Deserialize)]
+struct Ref {
+  /// The commit at the tip.
+  sha: String,
+}
+
+/// Resolves PR `pr` of the current repository to its head commit, or the
+/// checked-out commit when there is no PR.
+///
+/// # Errors
+///
+/// Any `Error` from `gh` or `git`, or from parsing their output.
+///
+/// # Side Effects
+///
+/// Runs `gh api` for a PR, else `git rev-parse`.
+pub fn head(pr: Option<u64>) -> Result<String, Error> {
+  let Some(number) = pr else {
+    return Ok(run("git", &["rev-parse", "HEAD"])?.trim().to_owned());
+  };
+  let pull: Pull = serde_json::from_str(&api(&format!(
+    "repos/{{owner}}/{{repo}}/pulls/{number}"
+  ))?)?;
+  Ok(pull.head.sha)
+}
+
+/// The last `lines` lines of GitHub Actions job `job`'s log, without the
+/// timestamp GitHub puts on every line.
+///
+/// # Errors
+///
+/// Any `Error` from `gh`, e.g. once the log has expired.
+///
+/// # Side Effects
+///
+/// Runs `gh api`, which downloads the whole log.
+pub fn log_tail(job: u64, lines: usize) -> Result<String, Error> {
+  let log = api(&format!("repos/{{owner}}/{{repo}}/actions/jobs/{job}/logs"))?;
+  Ok(tail(&log, lines))
+}
+
+/// The last `lines` lines of `log`, each with its leading timestamp cut.
+fn tail(log: &str, lines: usize) -> String {
+  let all: Vec<_> = log
+    .trim_end()
+    .lines()
+    .map(|line| match line.split_once(' ') {
+      Some((stamp, rest)) if stamp.ends_with('Z') && stamp.contains('T') => {
+        rest
+      }
+      _ => line,
+    })
+    .collect();
+  all[all.len().saturating_sub(lines)..].join("\n")
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn tail_cuts_timestamps_and_keeps_the_end() {
+    let log = "2026-10-30T06:38:25.1Z one\n2026-10-30T06:38:26.2Z two\nthree\n";
+    assert_eq!(tail(log, 2), "two\nthree");
+  }
 
   #[test]
   fn runs_and_statuses_merge_into_checks() {
