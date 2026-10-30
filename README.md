@@ -91,19 +91,26 @@ Two rule kinds behave differently, because Codex can't do what they need:
 
 ## Commands
 
-| Command                        | Does                                                  |
-| ------------------------------ | ----------------------------------------------------- |
-| `ahok hook <harness> <event>`  | Answers one hook call (`claude`, `codex`, `agy`).     |
-| `ahok ci wait [pr]`            | Waits for CI silently, then prints one summary.       |
-| `ahok doctor`                  | Checks the rules, `fml`/`git`/`mise`, and hook setup. |
-| `ahok link [repo] [--dry-run]` | Symlinks a repo's configs from its `links.toml`.      |
-| `ahok update [--check]`        | Updates `ahok` in place to the latest release.        |
-| `ahok stats`                   | Shows p50/p99 hook latency and rule hit counts.       |
+| Command                        | Does                                                   |
+| ------------------------------ | ------------------------------------------------------ |
+| `ahok hook <harness> <event>`  | Answers one hook call (`claude`, `codex`, `agy`).      |
+| `ahok ci wait [pr]`            | Waits for CI silently, then prints one summary.        |
+| `ahok git <hook> [args]`       | Runs the `GitHook` rules from `commit-msg`/`pre-push`. |
+| `ahok doctor`                  | Checks the rules, `fml`/`git`/`mise`, and hook setup.  |
+| `ahok link [repo] [--dry-run]` | Symlinks a repo's configs from its `links.toml`.       |
+| `ahok update [--check]`        | Updates `ahok` in place to the latest release.         |
+| `ahok stats`                   | Shows p50/p99 hook latency and rule hit counts.        |
 
 `ahok ci wait` needs a `gh` login. It reads checks through the REST API, polls
 with backoff up to once a minute, and prints each failed job's last log lines.
 It exits 0 when all checks pass, 1 on a failure, and 75 when `--timeout` runs
 out (540 s by default outside Claude Code, where it waits as long as it takes).
+
+`ahok git` runs from global git hooks: point `core.hooksPath` at scripts that
+call `ahok git commit-msg "$@"` and `ahok git pre-push "$@"` (the agents repo
+ships them in `git/hooks/`). A broken rule prints its reason and exits 1, which
+stops git; if the rules fail to load, it warns and lets the commit through. The
+diff budget counts added plus deleted lines of the staged diff.
 
 `ahok link` reads `[[link]]` entries with a `source` path in the repo and a
 target in `home`, `linux` or `windows` (`~` and `%VAR%` expand). A trailing `/*`
