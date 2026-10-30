@@ -6,6 +6,7 @@
 
 #![deny(clippy::print_stdout, clippy::print_stderr)]
 
+pub mod antigravity;
 pub mod claude;
 
 use event;
