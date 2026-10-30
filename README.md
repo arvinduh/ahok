@@ -75,11 +75,25 @@ Update in place anytime with `ahok update`.
 The hook always exits 0 and writes JSON. Any internal failure is logged to
 `errors.log` and the call is allowed.
 
+## Codex hooks
+
+Codex reads the same file shape from `~/.codex/hooks.json`. Use the block above
+with `ahok hook codex <event>` and the matcher `Bash|apply_patch` on
+`PreToolUse` and `apply_patch` on `PostToolUse`. Codex asks you to trust a new
+hook the first time it runs.
+
+Two rule kinds behave differently, because Codex can't do what they need:
+
+- An `ask` rule denies, telling the agent to get your go-ahead in chat. Codex
+  rejects `ask` replies and would run the call.
+- A `require_skill` rule adds a note naming the skill instead of blocking. Codex
+  has no Skill tool, so ahok can't see a skill load.
+
 ## Commands
 
 | Command                        | Does                                                  |
 | ------------------------------ | ----------------------------------------------------- |
-| `ahok hook <harness> <event>`  | Answers one hook call (`claude` or `antigravity`).    |
+| `ahok hook <harness> <event>`  | Answers one hook call (`claude`, `codex`, `agy`).     |
 | `ahok doctor`                  | Checks the rules, `fml`/`git`/`mise`, and hook setup. |
 | `ahok link [repo] [--dry-run]` | Symlinks a repo's configs from its `links.toml`.      |
 | `ahok update [--check]`        | Updates `ahok` in place to the latest release.        |
