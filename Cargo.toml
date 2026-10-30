@@ -30,13 +30,19 @@ missing_docs_in_private_items = "warn"
 redundant_clone = "warn"
 
 [workspace.dependencies]
+axoupdater = { version = "0.10.2", default-features = false, features = [
+  "github_releases",
+] }
 dispatch = { path = "crates/dispatch", package = "ahok-dispatch" }
 doctor = { path = "crates/doctor", package = "ahok-doctor" }
 event = { path = "crates/event", package = "ahok-event" }
 harness = { path = "crates/harness", package = "ahok-harness" }
 link = { path = "crates/link", package = "ahok-link" }
 rules = { path = "crates/rules", package = "ahok-rules" }
+semver = "1"
 state = { path = "crates/state", package = "ahok-state" }
+tempfile = "3"
+tokio = { version = "1", features = ["rt", "net", "time"] }
 
 globset = { version = "0.4.21", default-features = false }
 regex = "1.13.1"
@@ -67,7 +73,12 @@ repository.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = ["update"]
+update = ["dep:axoupdater", "dep:semver", "dep:tempfile", "dep:tokio"]
+
 [dependencies]
+axoupdater = { workspace = true, optional = true }
 clap.workspace = true
 dispatch.workspace = true
 doctor.workspace = true
@@ -75,8 +86,11 @@ event.workspace = true
 harness.workspace = true
 link.workspace = true
 rules.workspace = true
+semver = { workspace = true, optional = true }
 state.workspace = true
+tempfile = { workspace = true, optional = true }
 thiserror.workspace = true
+tokio = { workspace = true, optional = true }
 
 # Config for 'dist' (cargo-dist): GitHub Releases are the only channel - no
 # crates.io publish.
