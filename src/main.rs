@@ -14,6 +14,7 @@ fn main() -> process::ExitCode {
   match cli::Args::parse().run() {
     Ok(cli::Status::Clean) => process::ExitCode::SUCCESS,
     Ok(cli::Status::Failed) => process::ExitCode::FAILURE,
+    Ok(cli::Status::Retry) => process::ExitCode::from(75),
     Err(err) => {
       eprintln!("[ERROR] {err}");
       process::ExitCode::FAILURE
