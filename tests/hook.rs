@@ -138,3 +138,26 @@ fn antigravity_malformed_payload_fails_open_with_allow() {
     hook_harness("antigravity", "agy-malformed", "PreToolUse", "not json");
   assert_eq!(stdout.trim(), r#"{"decision":"allow"}"#);
 }
+
+#[test]
+fn codex_ask_rule_denies_and_logs() {
+  let payload = r#"{"session_id":"cx-1","cwd":"/repo","tool_name":"Bash",
+    "tool_input":{"command":"git commit -m x"}}"#;
+  let (stdout, state) =
+    hook_harness("codex", "codex-ask", "PreToolUse", payload);
+  assert!(
+    stdout.contains(r#""permissionDecision":"deny""#),
+    "{stdout}"
+  );
+  let log = fs::read_to_string(state.join("decisions.jsonl")).unwrap();
+  assert!(log.contains(r#""harness":"codex""#), "{log}");
+}
+
+#[test]
+fn codex_patch_needing_a_skill_adds_context() {
+  let payload = r#"{"session_id":"cx-2","cwd":"/repo","tool_name":"apply_patch",
+    "tool_input":{"command":"*** Begin Patch\n*** Update File: a.rs\n*** End Patch"}}"#;
+  let (stdout, _) = hook_harness("codex", "codex-skill", "PreToolUse", payload);
+  assert!(stdout.contains(r#""additionalContext":"#), "{stdout}");
+  assert!(!stdout.contains("permissionDecision"), "{stdout}");
+}
