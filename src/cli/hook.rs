@@ -69,7 +69,12 @@ impl Args {
           let message = format!("hook {} {}: {err}", self.harness, self.event);
           drop(journal::error(dir, unix_ms, &message));
         }
-        "{}".to_owned()
+        match self.harness.as_str() {
+          "antigravity" | "agy" if self.event == "PreToolUse" => {
+            r#"{"decision":"allow"}"#.to_owned()
+          }
+          _ => "{}".to_owned(),
+        }
       }
     };
     println!("{reply}");

@@ -122,3 +122,19 @@ fn agy_alias_works_identically() {
   let log = fs::read_to_string(state.join("decisions.jsonl")).unwrap();
   assert!(log.contains(r#""harness":"agy""#), "{log}");
 }
+
+#[test]
+fn antigravity_allowed_command_replies_allow() {
+  let payload = r#"{"conversationId":"agy-3","toolCall":{"name":"run_command",
+    "args":{"CommandLine":"git status"}}}"#;
+  let (stdout, _) =
+    hook_harness("antigravity", "agy-allow", "PreToolUse", payload);
+  assert_eq!(stdout.trim(), r#"{"decision":"allow"}"#);
+}
+
+#[test]
+fn antigravity_malformed_payload_fails_open_with_allow() {
+  let (stdout, _) =
+    hook_harness("antigravity", "agy-malformed", "PreToolUse", "not json");
+  assert_eq!(stdout.trim(), r#"{"decision":"allow"}"#);
+}

@@ -100,11 +100,11 @@ pub fn parse(
 
 /// Renders the stdout reply to an Antigravity hook call that `found` decided.
 ///
-/// No match renders `{}`, letting the tool run.
+/// No match renders `decision: allow`, letting the tool run.
 #[must_use]
 pub fn respond(found: Option<&rules::Match>) -> String {
   let Some(found) = found else {
-    return "{}".to_owned();
+    return serde_json::json!({ "decision": "allow" }).to_string();
   };
   let decision = match found.decision {
     event::Decision::Deny => "deny",
@@ -244,7 +244,10 @@ mod tests {
       serde_json::from_str(&respond(Some(&found))).expect("valid JSON");
     assert_eq!(reply["decision"], "deny");
     assert_eq!(reply["reason"], "[ahok format-via-fml] Use fml.");
-    assert_eq!(respond(None), "{}");
+    assert_eq!(
+      respond(None),
+      serde_json::json!({ "decision": "allow" }).to_string()
+    );
   }
 
   #[test]
