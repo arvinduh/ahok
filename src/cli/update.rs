@@ -104,23 +104,23 @@ impl Args {
     if self.check {
       match latest {
         Some(version) => {
-          println!("ahok: v{current} -> v{version}");
+          println!("ahok: {current} -> {version}");
         }
         None => {
-          println!("ahok: up to date (v{current})");
+          println!("ahok: up to date ({current})");
         }
       }
       return Ok(cli::Status::Clean);
     }
 
     let Some(latest) = latest else {
-      println!("ahok: up to date (v{current})");
+      println!("ahok: up to date ({current})");
       return Ok(cli::Status::Clean);
     };
 
     check_replaceable(&exe)?;
 
-    println!("updating ahok: v{current} -> v{latest}");
+    println!("updating ahok: {current} -> {latest}");
 
     // Prevent cargo-dist installer from modifying shell/user PATH on
     // self-update.
@@ -142,9 +142,9 @@ impl Args {
       .is_some();
 
     if was_updated {
-      println!("updated ahok to v{latest}");
+      println!("updated ahok to {latest}");
     } else {
-      println!("ahok: up to date (v{current})");
+      println!("ahok: up to date ({current})");
     }
     Ok(cli::Status::Clean)
   }
