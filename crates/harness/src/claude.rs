@@ -76,18 +76,28 @@ pub fn respond(found: Option<&rules::Match>) -> String {
     event::Decision::Deny => "deny",
     event::Decision::Ask => "ask",
   };
-  let reason = match (found.reason, found.require_skill) {
+  permission(decision, found.id, &reason(found))
+}
+
+/// Explains `found` to the agent: its own reason, else what it requires.
+pub(crate) fn reason(found: &rules::Match) -> String {
+  match (found.reason, found.require_skill) {
     (Some(reason), _) => reason.to_owned(),
     (None, Some(skill)) => {
       format!("Load the `{skill}` skill with the Skill tool, then retry.")
     }
     (None, None) => found.id.to_owned(),
-  };
+  }
+}
+
+/// Renders a `PreToolUse` permission reply in the shape Claude Code and
+/// Codex share; `decision` is `deny` or `ask`.
+pub(crate) fn permission(decision: &str, rule: &str, reason: &str) -> String {
   serde_json::json!({
     "hookSpecificOutput": {
       "hookEventName": "PreToolUse",
       "permissionDecision": decision,
-      "permissionDecisionReason": format!("[ahok {}] {reason}", found.id),
+      "permissionDecisionReason": format!("[ahok {rule}] {reason}"),
     }
   })
   .to_string()
@@ -97,8 +107,8 @@ pub fn respond(found: Option<&rules::Match>) -> String {
 /// built-in checks produced `failures`.
 ///
 /// `decision: block` shows the reason to the agent: after an edit it is
-/// feedback, and at `Stop` it keeps the agent working. No failures renders
-/// `{}`.
+/// feedback, and at `Stop` it keeps the agent working. Codex reads the same
+/// shape. No failures renders `{}`.
 #[must_use]
 pub fn feedback(failures: &[dispatch::Failure]) -> String {
   if failures.is_empty() {
