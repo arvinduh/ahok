@@ -107,6 +107,8 @@ targets = [
 install-path = ["~/.local/bin", "~/.cargo/bin"]
 install-updater = false
 source-tarball = false
+# release.yml carries a local edit (bare x.y.z tag trigger)
+allow-dirty = ["ci"]
 
 [profile.release]
 opt-level = 3
