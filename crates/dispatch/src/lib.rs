@@ -43,13 +43,16 @@ pub fn format(cwd: &path::Path, paths: &[path::PathBuf]) -> Option<Failure> {
 ///
 /// Always runs `fml lint --changed`; adds `cargo check` when a `.rs` file
 /// changed and `basedpyright` when a `.py` file changed, per `git status`.
+/// Runs nothing outside a git repository, where nothing can have changed.
 ///
 /// # Side Effects
 ///
 /// Runs `git`, `fml`, and possibly `cargo` and `basedpyright`.
 #[must_use]
 pub fn gate(cwd: &path::Path) -> Vec<Failure> {
-  let changed = changed_files(cwd);
+  let Some(changed) = changed_files(cwd) else {
+    return Vec::new();
+  };
   let changed_ext = |ext: &str| {
     changed
       .iter()
@@ -69,17 +72,18 @@ pub fn gate(cwd: &path::Path) -> Vec<Failure> {
 }
 
 /// Paths `git status` reports as changed or untracked in `cwd`.
-fn changed_files(cwd: &path::Path) -> Vec<String> {
+///
+/// Returns `None` when `git status` fails, as it does outside a repository.
+fn changed_files(cwd: &path::Path) -> Option<Vec<String>> {
   let mut git = command("git", &["status", "--porcelain"]);
   in_dir(&mut git, cwd);
-  let Ok(output) = git.output() else {
-    return Vec::new();
-  };
-  String::from_utf8_lossy(&output.stdout)
+  let output = git.output().ok().filter(|output| output.status.success())?;
+  let files = String::from_utf8_lossy(&output.stdout)
     .lines()
     .filter_map(|line| line.get(3..))
     .map(|file| file.rsplit(" -> ").next().unwrap_or(file).to_owned())
-    .collect()
+    .collect();
+  Some(files)
 }
 
 /// Builds `program args...`.
@@ -154,6 +158,15 @@ mod tests {
   #[test]
   fn passing_command_is_not_a_failure() {
     assert!(run(path::Path::new(""), command("true", &[])).is_none());
+  }
+
+  #[test]
+  fn gate_passes_outside_a_git_repo() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    assert!(
+      gate(dir.path()).is_empty(),
+      "gate ran checks outside a repo"
+    );
   }
 
   #[test]
