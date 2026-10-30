@@ -125,6 +125,9 @@ fn violation(rule: &crate::Rule) -> Violation<'_> {
 mod tests {
   use super::*;
 
+  /// No violations, for `assert_eq!` against a list of ids.
+  const NONE: [&str; 0] = [];
+
   fn rules() -> Vec<crate::Rule> {
     crate::parse(include_str!("../tests/fixtures/rules/git.toml")).unwrap()
   }
@@ -152,7 +155,7 @@ mod tests {
 
   #[test]
   fn good_small_commit_passes() {
-    assert!(commit("feat(git): add hooks\n\nWhy.", 50, "").is_empty());
+    assert_eq!(commit("feat(git): add hooks\n\nWhy.", 50, ""), NONE);
   }
 
   #[test]
@@ -163,15 +166,15 @@ mod tests {
 
   #[test]
   fn sweep_tag_and_env_exempt_their_rules() {
-    assert!(commit("chore: format [sweep]", 900, "").is_empty());
+    assert_eq!(commit("chore: format [sweep]", 900, ""), NONE);
     let found = commit("feat(x): big", 900, "ALLOW_LARGE_COMMIT");
     assert!(found.is_empty(), "{found:?}");
   }
 
   #[test]
   fn comments_and_merges_skip_the_subject_rule() {
-    assert!(commit("# Please enter\nfix(a): add b\n", 1, "").is_empty());
-    assert!(commit("Merge branch 'main' into x", 1, "").is_empty());
+    assert_eq!(commit("# Please enter\nfix(a): add b\n", 1, ""), NONE);
+    assert_eq!(commit("Merge branch 'main' into x", 1, ""), NONE);
   }
 
   #[test]
@@ -190,6 +193,6 @@ mod tests {
       found[0].reason,
       "AGENTS.md §9: never push to the default branch."
     );
-    assert!(pre_push(&rules, Some(&["refs/heads/feat-x"])).is_empty());
+    assert_eq!(ids(&pre_push(&rules, Some(&["refs/heads/feat-x"]))), NONE);
   }
 }
