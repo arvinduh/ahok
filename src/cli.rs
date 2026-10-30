@@ -7,6 +7,8 @@ mod doctor;
 mod hook;
 mod link;
 mod stats;
+#[cfg(feature = "update")]
+mod update;
 
 use std::io;
 use std::path;
@@ -26,6 +28,9 @@ pub enum Args {
   Link(link::Args),
   /// Print hook latency percentiles and rule hit counts.
   Stats,
+  #[cfg(feature = "update")]
+  /// Update the ahok binary to the latest release.
+  Update(update::Args),
 }
 
 /// How a command that ran to completion ended.
@@ -53,6 +58,10 @@ pub enum Error {
     /// Why reading it failed.
     source: io::Error,
   },
+  #[cfg(feature = "update")]
+  /// Self-update failed.
+  #[error(transparent)]
+  Update(#[from] update::Error),
 }
 
 impl Args {
@@ -63,6 +72,8 @@ impl Args {
       Self::Hook(args) => Ok(args.run()),
       Self::Link(args) => args.run(),
       Self::Stats => stats::run(),
+      #[cfg(feature = "update")]
+      Self::Update(args) => args.run().map_err(Error::Update),
     }
   }
 }
