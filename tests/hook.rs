@@ -10,16 +10,40 @@ use std::process;
 /// Runs `ahok hook claude <event>` on `payload` with fixture rules and a
 /// fresh state directory; returns stdout and ahok's state directory.
 fn hook(name: &str, event: &str, payload: &str) -> (String, path::PathBuf) {
+  hook_harness("claude", name, event, payload)
+}
+
+/// Runs `ahok hook <harness> <event>` on `payload` with fixture rules and a
+/// fresh state directory; returns stdout and ahok's state directory.
+fn hook_harness(
+  harness: &str,
+  name: &str,
+  event: &str,
+  payload: &str,
+) -> (String, path::PathBuf) {
   let state = env::temp_dir().join(format!("ahok-hook-{name}"));
   drop(fs::remove_dir_all(&state));
-  (run(&state, event, payload), state.join("ahok"))
+  (
+    run_harness(harness, &state, event, payload),
+    state.join("ahok"),
+  )
 }
 
 /// Runs `ahok hook claude <event>` on `payload` with state under `state`.
 fn run(state: &path::Path, event: &str, payload: &str) -> String {
+  run_harness("claude", state, event, payload)
+}
+
+/// Runs `ahok hook <harness> <event>` on `payload` with state under `state`.
+fn run_harness(
+  harness: &str,
+  state: &path::Path,
+  event: &str,
+  payload: &str,
+) -> String {
   let root = path::Path::new(env!("CARGO_MANIFEST_DIR"));
   let mut child = process::Command::new(env!("CARGO_BIN_EXE_ahok"))
-    .args(["hook", "claude", event])
+    .args(["hook", harness, event])
     .env("AHOK_CONFIG_DIR", root.join("crates/rules/tests/fixtures"))
     .env("XDG_STATE_HOME", state)
     .env("LOCALAPPDATA", state)
@@ -74,4 +98,27 @@ fn skill_reminder_fires_once_per_session() {
   assert!(first.contains("rust-guide"), "{first}");
   let second = run(state.parent().unwrap(), "PreToolUse", edit);
   assert_eq!(second.trim(), "{}");
+}
+
+#[test]
+fn antigravity_denied_command_replies_and_logs() {
+  let payload = r#"{"conversationId":"agy-1","toolCall":{"name":"run_command",
+    "args":{"CommandLine":"rustfmt src/main.rs"}}}"#;
+  let (stdout, state) =
+    hook_harness("antigravity", "agy-deny", "PreToolUse", payload);
+  assert!(stdout.contains(r#""decision":"deny""#), "{stdout}");
+  assert!(stdout.contains("[ahok format-via-fml]"), "{stdout}");
+  let log = fs::read_to_string(state.join("decisions.jsonl")).unwrap();
+  assert!(log.contains(r#""rule":"format-via-fml""#), "{log}");
+  assert!(log.contains(r#""harness":"antigravity""#), "{log}");
+}
+
+#[test]
+fn agy_alias_works_identically() {
+  let payload = r#"{"conversationId":"agy-2","toolCall":{"name":"run_command",
+    "args":{"CommandLine":"rustfmt src/main.rs"}}}"#;
+  let (stdout, state) = hook_harness("agy", "agy-alias", "PreToolUse", payload);
+  assert!(stdout.contains(r#""decision":"deny""#), "{stdout}");
+  let log = fs::read_to_string(state.join("decisions.jsonl")).unwrap();
+  assert!(log.contains(r#""harness":"agy""#), "{log}");
 }
