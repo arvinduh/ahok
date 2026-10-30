@@ -77,3 +77,29 @@ link.workspace = true
 rules.workspace = true
 state.workspace = true
 thiserror.workspace = true
+
+# Config for 'dist' (cargo-dist): GitHub Releases are the only channel - no
+# crates.io publish.
+[workspace.metadata.dist]
+cargo-dist-version = "0.32.0"
+ci = "github"
+installers = ["shell", "powershell"]
+targets = [
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+  "x86_64-unknown-linux-musl",
+  "x86_64-pc-windows-msvc",
+]
+install-path = ["~/.local/bin", "~/.cargo/bin"]
+install-updater = false
+source-tarball = false
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dist]
+inherits = "release"
