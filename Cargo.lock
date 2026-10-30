@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "ahok"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ahok-dispatch",
  "ahok-doctor",
@@ -32,11 +32,11 @@ dependencies = [
 
 [[package]]
 name = "ahok-dispatch"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "ahok-doctor"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ahok-rules",
  "ahok-state",
@@ -44,14 +44,14 @@ dependencies = [
 
 [[package]]
 name = "ahok-event"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "ahok-harness"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ahok-dispatch",
  "ahok-event",
@@ -63,7 +63,7 @@ dependencies = [
 
 [[package]]
 name = "ahok-link"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "regex",
  "serde",
@@ -73,7 +73,7 @@ dependencies = [
 
 [[package]]
 name = "ahok-rules"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ahok-event",
  "ahok-state",
@@ -88,7 +88,7 @@ dependencies = [
 
 [[package]]
 name = "ahok-state"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ahok-event",
  "serde",
