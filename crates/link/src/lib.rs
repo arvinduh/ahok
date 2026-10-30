@@ -421,9 +421,11 @@ fn symlink(source: &path::Path, link: &path::Path) -> io::Result<()> {
 
 /// Removes a symlink, whether it points to a file or a directory.
 fn remove_link(link: &path::Path) -> io::Result<()> {
-  // A directory symlink on Windows is removed like a directory.
-  if cfg!(windows) && link.is_dir() {
-    fs::remove_dir(link)
+  // A directory symlink on Windows must be removed with `remove_dir`.
+  // `is_dir()` follows the link and returns false for a broken link, so
+  // try `remove_dir` first, then fall back to `remove_file`.
+  if cfg!(windows) {
+    fs::remove_dir(link).or_else(|_| fs::remove_file(link))
   } else {
     fs::remove_file(link)
   }
