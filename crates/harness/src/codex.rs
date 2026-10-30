@@ -7,8 +7,11 @@
 use std::path;
 
 use event;
+use rules;
 use serde;
 use serde_json;
+
+use crate::claude;
 
 /// The fields of a Codex hook payload that rules read.
 #[derive(serde::Deserialize)]
@@ -57,6 +60,41 @@ pub fn parse(
     cwd: payload.cwd,
     kind,
   })
+}
+
+/// Renders the stdout reply to a Codex hook call that `found` decided.
+///
+/// Codex has no Skill tool, so a `require_skill` rule adds context naming
+/// the skill instead of blocking. Codex rejects `permissionDecision: ask` as
+/// invalid and runs the call, so an `ask` rule denies and tells the agent to
+/// get the user's go-ahead. No match renders `{}`, which lets the call
+/// proceed.
+#[must_use]
+pub fn respond(found: Option<&rules::Match>) -> String {
+  match found {
+    Some(found) if let Some(skill) = found.require_skill => {
+      let reason = found.reason.map_or_else(
+        || format!("Follow the `{skill}` skill; read its SKILL.md first."),
+        str::to_owned,
+      );
+      serde_json::json!({
+        "hookSpecificOutput": {
+          "hookEventName": "PreToolUse",
+          "additionalContext": format!("[ahok {}] {reason}", found.id),
+        }
+      })
+      .to_string()
+    }
+    Some(found) if found.decision == event::Decision::Ask => {
+      let reason = format!(
+        "{} Codex hooks can't ask the user, so ask them in chat; they can \
+         run it themselves.",
+        claude::reason(found)
+      );
+      claude::permission("deny", found.id, &reason)
+    }
+    _ => claude::respond(found),
+  }
 }
 
 /// Maps a Codex tool call onto the harness-neutral tool.
@@ -148,5 +186,57 @@ mod tests {
         already_blocked: true
       }
     ));
+  }
+
+  fn decided(decision: event::Decision) -> serde_json::Value {
+    let found = rules::Match {
+      id: "commit-needs-approval",
+      decision,
+      reason: Some("Ask first."),
+      require_skill: None,
+      once: false,
+    };
+    let reply: serde_json::Value =
+      serde_json::from_str(&respond(Some(&found))).unwrap();
+    reply["hookSpecificOutput"].clone()
+  }
+
+  #[test]
+  fn require_skill_adds_context_without_blocking() {
+    let found = rules::Match {
+      id: "skill-dispatch-rust",
+      decision: event::Decision::Deny,
+      reason: None,
+      require_skill: Some("rust-guide"),
+      once: true,
+    };
+    let reply: serde_json::Value =
+      serde_json::from_str(&respond(Some(&found))).unwrap();
+    let output = &reply["hookSpecificOutput"];
+    assert!(output.get("permissionDecision").is_none(), "{output}");
+    assert_eq!(
+      output["additionalContext"],
+      "[ahok skill-dispatch-rust] Follow the `rust-guide` skill; read its \
+       SKILL.md first."
+    );
+  }
+
+  #[test]
+  fn deny_renders_like_claude() {
+    let output = decided(event::Decision::Deny);
+    assert_eq!(output["permissionDecision"], "deny");
+    assert_eq!(
+      output["permissionDecisionReason"],
+      "[ahok commit-needs-approval] Ask first."
+    );
+    assert_eq!(respond(None), "{}");
+  }
+
+  #[test]
+  fn ask_becomes_deny() {
+    let output = decided(event::Decision::Ask);
+    assert_eq!(output["permissionDecision"], "deny");
+    let reason = output["permissionDecisionReason"].as_str().unwrap();
+    assert!(reason.contains("ask them in chat"), "{reason}");
   }
 }
