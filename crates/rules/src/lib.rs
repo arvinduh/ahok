@@ -18,11 +18,16 @@ use thiserror;
 use toml;
 
 mod eval;
+mod git;
 mod shell;
 
 pub use eval::Env;
 pub use eval::Match;
 pub use eval::evaluate;
+pub use git::Change;
+pub use git::Violation;
+pub use git::commit_msg;
+pub use git::pre_push;
 
 /// Why the rules directory could not be loaded.
 #[derive(Debug, thiserror::Error)]
@@ -43,11 +48,6 @@ pub enum Error {
 /// One `[[rule]]` table, exactly as written in a rules file.
 #[derive(Debug, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-#[expect(
-  dead_code,
-  reason = "git-hook fields are parsed so bad rules fail to load; `ahok git` \
-            will read them"
-)]
 pub struct Rule {
   /// Unique name, shown to the agent and logged.
   id: String,
@@ -121,7 +121,7 @@ enum Tools {
 }
 
 /// The git hook a `GitHook` rule runs in.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum GitHook {
   /// Checks the commit message and the staged diff.
