@@ -80,6 +80,7 @@ update = ["dep:axoupdater", "dep:semver", "dep:tempfile", "dep:tokio"]
 
 [dependencies]
 axoupdater = { workspace = true, optional = true }
+ci.workspace = true
 clap.workspace = true
 dispatch.workspace = true
 doctor.workspace = true
