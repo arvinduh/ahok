@@ -25,7 +25,7 @@ use crate::cli;
 /// Arguments of `ahok hook`.
 #[derive(clap::Args)]
 pub struct Args {
-  /// Harness that fired the hook: claude.
+  /// Harness that fired the hook: claude, antigravity or agy.
   harness: String,
   /// Hook event name, such as `PreToolUse`.
   event: String,
@@ -87,24 +87,53 @@ impl Args {
     unix_ms: u64,
     state: Option<&path::Path>,
   ) -> Result<String, Error> {
-    if self.harness != "claude" {
-      return Err(Error::UnknownHarness(self.harness.clone()));
-    }
     let mut input = String::new();
     io::Read::read_to_string(&mut io::stdin(), &mut input)?;
-    let event = harness::claude::parse(&self.event, &input)?;
-    let (reply, found) = match &event.kind {
-      event::Kind::PreToolUse(tool) => {
-        pre_tool_use(&event, tool, state, unix_ms)?
+    let (reply, found) = match self.harness.as_str() {
+      "claude" => {
+        let event = harness::claude::parse(&self.event, &input)?;
+        match &event.kind {
+          event::Kind::PreToolUse(tool) => pre_tool_use(
+            &event,
+            tool,
+            state,
+            unix_ms,
+            harness::claude::respond,
+          )?,
+          event::Kind::PostToolUse(event::Tool::Edit { paths }) => {
+            let failure = dispatch::format(&event.cwd, paths);
+            (harness::claude::feedback(failure.as_slice()), None)
+          }
+          event::Kind::Stop {
+            already_blocked: false,
+          } => (harness::claude::feedback(&dispatch::gate(&event.cwd)), None),
+          _ => ("{}".to_owned(), None),
+        }
       }
-      event::Kind::PostToolUse(event::Tool::Edit { paths }) => {
-        let failure = dispatch::format(&event.cwd, paths);
-        (harness::claude::feedback(failure.as_slice()), None)
+      "antigravity" | "agy" => {
+        let event = harness::antigravity::parse(&self.event, &input)?;
+        match &event.kind {
+          event::Kind::PreToolUse(tool) => pre_tool_use(
+            &event,
+            tool,
+            state,
+            unix_ms,
+            harness::antigravity::respond,
+          )?,
+          event::Kind::PostToolUse(event::Tool::Edit { paths }) => {
+            drop(dispatch::format(&event.cwd, paths));
+            ("{}".to_owned(), None)
+          }
+          event::Kind::Stop {
+            already_blocked: false,
+          } => (
+            harness::antigravity::feedback(&dispatch::gate(&event.cwd)),
+            None,
+          ),
+          _ => ("{}".to_owned(), None),
+        }
       }
-      event::Kind::Stop {
-        already_blocked: false,
-      } => (harness::claude::feedback(&dispatch::gate(&event.cwd)), None),
-      _ => ("{}".to_owned(), None),
+      _ => return Err(Error::UnknownHarness(self.harness.clone())),
     };
     if let Some(dir) = state {
       let entry = journal::Decision {
@@ -140,6 +169,7 @@ fn pre_tool_use(
   tool: &event::Tool,
   state: Option<&path::Path>,
   unix_ms: u64,
+  respond: impl FnOnce(Option<&rules::Match>) -> String,
 ) -> Result<(String, Option<(String, event::Decision)>), Error> {
   let config = dirs::config().ok_or(Error::NoConfig)?;
   let rules = rules::load(&config.join("rules"))?;
@@ -155,7 +185,7 @@ fn pre_tool_use(
     session: &session,
   };
   let found = rules::evaluate(&rules, event, &env);
-  let reply = harness::claude::respond(found.as_ref());
+  let reply = respond(found.as_ref());
   let fired = found
     .as_ref()
     .filter(|found| found.once)
