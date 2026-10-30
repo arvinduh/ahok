@@ -25,7 +25,7 @@ use crate::cli;
 /// Arguments of `ahok hook`.
 #[derive(clap::Args)]
 pub struct Args {
-  /// Harness that fired the hook: claude, antigravity or agy.
+  /// Harness that fired the hook: claude, codex, antigravity or agy.
   harness: String,
   /// Hook event name, such as `PreToolUse`.
   event: String,
@@ -95,16 +95,17 @@ impl Args {
     let mut input = String::new();
     io::Read::read_to_string(&mut io::stdin(), &mut input)?;
     let (reply, found) = match self.harness.as_str() {
-      "claude" => {
-        let event = harness::claude::parse(&self.event, &input)?;
+      // Codex shares Claude Code's reply shape for everything but rules.
+      "claude" | "codex" => {
+        let (parse, respond): (Parse, Respond) = match self.harness.as_str() {
+          "claude" => (harness::claude::parse, harness::claude::respond),
+          _ => (harness::codex::parse, harness::codex::respond),
+        };
+        let event = parse(&self.event, &input)?;
         match &event.kind {
-          event::Kind::PreToolUse(tool) => pre_tool_use(
-            &event,
-            tool,
-            state,
-            unix_ms,
-            harness::claude::respond,
-          )?,
+          event::Kind::PreToolUse(tool) => {
+            pre_tool_use(&event, tool, state, unix_ms, respond)?
+          }
           event::Kind::PostToolUse(event::Tool::Edit { paths }) => {
             let failure = dispatch::format(&event.cwd, paths);
             (harness::claude::feedback(failure.as_slice()), None)
@@ -160,6 +161,12 @@ impl Args {
     Ok(reply)
   }
 }
+
+/// An adapter's payload parser, such as `harness::claude::parse`.
+type Parse = fn(&str, &str) -> Result<event::Event, harness::Error>;
+
+/// An adapter's `PreToolUse` reply renderer.
+type Respond = fn(Option<&rules::Match>) -> String;
 
 /// Evaluates the rules for a `PreToolUse` call and updates the session.
 ///
