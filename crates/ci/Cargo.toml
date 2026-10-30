@@ -1,0 +1,16 @@
+[package]
+name = "ahok-ci"
+description = "Reads a commit's CI checks from GitHub through gh"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

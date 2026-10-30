@@ -33,6 +33,7 @@ redundant_clone = "warn"
 axoupdater = { version = "0.10.2", default-features = false, features = [
   "github_releases",
 ] }
+ci = { path = "crates/ci", package = "ahok-ci" }
 dispatch = { path = "crates/dispatch", package = "ahok-dispatch" }
 doctor = { path = "crates/doctor", package = "ahok-doctor" }
 event = { path = "crates/event", package = "ahok-event" }
