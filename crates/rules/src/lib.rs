@@ -78,14 +78,15 @@ pub struct Rule {
   /// The git hook a `GitHook` rule runs in.
   hook: Option<GitHook>,
   /// Regex the commit subject must match.
-  pattern: Option<String>,
+  #[serde(default, deserialize_with = "compile_regex")]
+  pattern: Option<regex::Regex>,
   /// Commit-message tag that exempts the commit.
   allow_tag: Option<String>,
   /// Most net lines a staged diff may change.
   max_net_lines: Option<u32>,
   /// Paths left out of the diff count.
-  #[serde(default)]
-  exclude_globs: Vec<String>,
+  #[serde(default, deserialize_with = "compile_globs")]
+  exclude_globs: Option<globset::GlobSet>,
   /// Environment variable that exempts the commit.
   allow_env: Option<String>,
   /// Skip the rule while this variable is set.
@@ -225,6 +226,12 @@ mod tests {
   fn double_quoted_regex_escape_is_rejected() {
     let text = "[[rule]]\nid = \"x\"\nevent = \"GitHook\"\npattern = \"\\(\"\n";
     assert!(parse(text).is_err());
+  }
+
+  #[test]
+  fn bad_commit_pattern_fails_loading() {
+    let text = "[[rule]]\nid = \"x\"\nevent = \"GitHook\"\npattern = '('\n";
+    assert!(parse(text).is_err(), "an unclosed group must not load");
   }
 
   #[test]
