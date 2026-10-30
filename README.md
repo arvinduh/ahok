@@ -7,20 +7,26 @@ runs a lint gate when the agent stops.
 
 ## Install
 
+Linux and macOS:
+
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/arvinduh/ahok/releases/latest/download/ahok-installer.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+powershell -c "irm https://github.com/arvinduh/ahok/releases/latest/download/ahok-installer.ps1 | iex"
+```
+
+Cargo:
+
 ```sh
 cargo install --git https://github.com/arvinduh/ahok --locked
-ahok doctor
 ```
 
-Without cargo, such as in a cloud session, download a release binary:
-
-```sh
-curl -fsSL -o ~/.local/bin/ahok --create-dirs \
-  https://github.com/arvinduh/ahok/releases/latest/download/ahok-linux-x86_64
-chmod +x ~/.local/bin/ahok
-```
-
-Windows builds are `ahok-windows-x86_64.exe` on the same release.
+Update in place anytime with `ahok update`.
 
 ## Claude Code hooks
 
@@ -73,16 +79,17 @@ The hook always exits 0 and writes JSON. Any internal failure is logged to
 
 | Command                        | Does                                                  |
 | ------------------------------ | ----------------------------------------------------- |
-| `ahok hook <harness> <event>`  | Answers one hook call (`claude` today).               |
+| `ahok hook <harness> <event>`  | Answers one hook call (`claude` or `antigravity`).    |
 | `ahok doctor`                  | Checks the rules, `fml`/`git`/`mise`, and hook setup. |
 | `ahok link [repo] [--dry-run]` | Symlinks a repo's configs from its `links.toml`.      |
+| `ahok update [--check]`        | Updates `ahok` in place to the latest release.        |
 | `ahok stats`                   | Shows p50/p99 hook latency and rule hit counts.       |
 
 `ahok link` reads `[[link]]` entries with a `source` path in the repo and a
-target in `home`, `linux` or `windows` (`~` and `%VAR%` expand). A trailing
-`/*` on `source` links each child. `cloud = true` also links the entry in
-Claude Code cloud sessions, which ahok detects from `CLAUDE_CODE_REMOTE`.
-It never overwrites a real file: it moves it to `<name>.bak-<time>` first.
+target in `home`, `linux` or `windows` (`~` and `%VAR%` expand). A trailing `/*`
+on `source` links each child. `cloud = true` also links the entry in Claude Code
+cloud sessions, which ahok detects from `CLAUDE_CODE_REMOTE`. It never
+overwrites a real file: it moves it to `<name>.bak-<time>` first.
 
 Config comes from `$AHOK_CONFIG_DIR` (default `~/.agents`). State lives in
 `%LOCALAPPDATA%\ahok` on Windows and `~/.local/state/ahok` elsewhere:
