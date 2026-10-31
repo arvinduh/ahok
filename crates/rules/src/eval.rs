@@ -156,14 +156,15 @@ fn tool_is(tool: &event::Tool, name: &str) -> bool {
 /// Whether `argv` runs `pattern`'s program with its other words, in order.
 ///
 /// `"git push --force"` matches `git push origin main --force` but not
-/// `git push --force-with-lease`.
+/// `git push --force-with-lease`. Words after a bare `--` belong to another
+/// program or are operands, so `cargo run -- fmt` does not run `cargo fmt`.
 fn has_words(argv: &[String], pattern: &str) -> bool {
   let mut words = pattern.split_whitespace();
   let (Some(program), Some((first, rest))) = (words.next(), argv.split_first())
   else {
     return false;
   };
-  let mut rest = rest.iter();
+  let mut rest = rest.iter().take_while(|arg| *arg != "--");
   first == program && words.all(|word| rest.any(|arg| arg == word))
 }
 
@@ -321,5 +322,9 @@ mod tests {
       "git push --force"
     ));
     assert!(!has_words(&argv("jj push --force"), "git push --force"));
+    assert!(
+      !has_words(&argv("cargo run -q -- fmt --check"), "cargo fmt"),
+      "words after `--` are not cargo's"
+    );
   }
 }
