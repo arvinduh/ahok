@@ -64,6 +64,12 @@ impl Agents {
     self.rules.as_ref().map(|dir| workspace.join(dir))
   }
 
+  /// The harnesses to wire up.
+  #[must_use]
+  pub fn harnesses(&self) -> &[harness::Harness] {
+    &self.harnesses
+  }
+
   /// Links the instructions and each skill into every harness's home.
   #[must_use]
   pub fn links(&self) -> Vec<link::Link> {

@@ -6,6 +6,8 @@
 
 use std::path;
 
+use ahok_core::harness;
+use ahok_core::harness::git;
 use ahok_core::link;
 use ahok_core::manifest;
 use clap;
@@ -44,6 +46,7 @@ impl Args {
       let manifest = manifest::load(&repo)?;
       let mut links = manifest.link;
       let mut configs = Vec::new();
+      let mut wires_git = false;
       if let Some(agents) = &manifest.agents {
         if let Some(first) = agents_in {
           return Err(cli::Error::TwoAgents {
@@ -53,10 +56,15 @@ impl Args {
         }
         links.extend(agents.links());
         configs = agents.configs(&repo, &manifest.check)?;
+        wires_git = agents.harnesses().contains(&harness::Harness::Git);
         agents_in = Some(repo.clone());
       }
       rows.extend(link::apply(&repo, &links, platform, self.check));
       rows.extend(link::write(&configs, self.check));
+      if wires_git {
+        rows.extend(link::write_scripts(&git::shims(&repo), self.check));
+        rows.push(git::hooks_path(self.check));
+      }
     }
     let labels: Vec<String> =
       rows.iter().map(|row| label(&row.outcome)).collect();
