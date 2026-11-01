@@ -1,44 +1,11 @@
-//! Append-only logs in the state directory.
+//! The append-only error log in the state directory.
 //!
-//! This module owns the on-disk format of `decisions.jsonl`, one JSON object
-//! per hook call, and of `errors.log`. Locating the directory belongs to
-//! `dirs`; reading the decisions back belongs to `ahok stats`.
+//! This module owns the on-disk format of `errors.log`, where hook calls
+//! that failed open record why. Locating the directory belongs to `dirs`.
 
 use std::fs;
 use std::io;
 use std::path;
-
-use event;
-use serde;
-use serde_json;
-
-/// One hook call, as logged to `decisions.jsonl`.
-#[derive(serde::Serialize)]
-pub struct Decision<'a> {
-  /// When the call started, in milliseconds since the Unix epoch.
-  pub unix_ms: u64,
-  /// Harness name from the command line.
-  pub harness: &'a str,
-  /// Event name from the command line.
-  pub event: &'a str,
-  /// Id of the deciding rule; absent when the call was allowed.
-  pub rule: Option<&'a str>,
-  /// The decision; absent means allow.
-  pub decision: Option<event::Decision>,
-  /// Time spent in ahok, in microseconds.
-  pub micros: u64,
-}
-
-/// Appends `entry` as one line of `dir/decisions.jsonl`.
-///
-/// # Errors
-///
-/// Any I/O error creating `dir` or writing the file.
-pub fn decision(dir: &path::Path, entry: &Decision) -> io::Result<()> {
-  let mut line = serde_json::to_vec(entry)?;
-  line.push(b'\n');
-  append(&dir.join("decisions.jsonl"), &line)
-}
 
 /// Appends `message` as one line of `dir/errors.log`, after `unix_ms`.
 ///
@@ -60,33 +27,4 @@ fn append(path: &path::Path, bytes: &[u8]) -> io::Result<()> {
     .append(true)
     .open(path)?;
   io::Write::write_all(&mut file, bytes)
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn appends_one_json_line_per_decision() {
-    let dir = std::env::temp_dir().join("ahok-journal-test");
-    let _ = fs::remove_dir_all(&dir);
-    let entry = Decision {
-      unix_ms: 1,
-      harness: "claude",
-      event: "PreToolUse",
-      rule: Some("format-via-fml"),
-      decision: Some(event::Decision::Deny),
-      micros: 420,
-    };
-    decision(&dir, &entry).unwrap();
-    decision(&dir, &entry).unwrap();
-    let text = fs::read_to_string(dir.join("decisions.jsonl")).unwrap();
-    let lines: Vec<_> = text.lines().collect();
-    assert_eq!(lines.len(), 2);
-    let expected = concat!(
-      r#"{"unix_ms":1,"harness":"claude","event":"PreToolUse","#,
-      r#""rule":"format-via-fml","decision":"deny","micros":420}"#,
-    );
-    assert_eq!(lines[0], expected);
-  }
 }

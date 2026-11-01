@@ -6,7 +6,6 @@
 mod git;
 mod hook;
 mod link;
-mod stats;
 #[cfg(feature = "update")]
 mod update;
 
@@ -27,8 +26,6 @@ pub enum Args {
   Hook(hook::Args),
   /// Symlink a config repo's files into place, from its `links.toml`.
   Link(link::Args),
-  /// Print hook latency percentiles and rule hit counts.
-  Stats,
   #[cfg(feature = "update")]
   /// Update the ahok binary to the latest release.
   Update(update::Args),
@@ -45,9 +42,6 @@ pub enum Status {
 /// Why a command could not run.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-  /// No state directory could be located.
-  #[error("no state directory: set XDG_STATE_HOME or HOME")]
-  NoState,
   /// `links.toml` could not be read or parsed.
   #[error(transparent)]
   Link(#[from] ::link::Error),
@@ -72,7 +66,6 @@ impl Args {
       Self::Git(args) => Ok(args.run()),
       Self::Hook(args) => Ok(args.run()),
       Self::Link(args) => args.run(),
-      Self::Stats => stats::run(),
       #[cfg(feature = "update")]
       Self::Update(args) => args.run().map_err(Error::Update),
     }

@@ -11,6 +11,5 @@ publish = false
 workspace = true
 
 [dependencies]
-event.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -57,12 +57,11 @@ enum Error {
 impl Args {
   /// Answers the hook call on stdout. Always `Clean`: hooks fail open.
   pub fn run(self) -> cli::Status {
-    let start = time::Instant::now();
     let unix_ms = time::SystemTime::now()
       .duration_since(time::UNIX_EPOCH)
       .map_or(0, |since| u64::try_from(since.as_millis()).unwrap_or(0));
     let state = dirs::state();
-    let reply = match self.decide(start, unix_ms, state.as_deref()) {
+    let reply = match self.decide(unix_ms, state.as_deref()) {
       Ok(reply) => reply,
       Err(err) => {
         if let Some(dir) = &state {
@@ -81,20 +80,19 @@ impl Args {
     cli::Status::Clean
   }
 
-  /// Parses the payload, runs what the event calls for, logs the call, and
-  /// returns the reply.
+  /// Parses the payload, runs what the event calls for, and returns the
+  /// reply.
   ///
   /// `PreToolUse` evaluates the rules; `PostToolUse` on an edit formats the
   /// files; `Stop` runs the gate unless a Stop hook already blocked once.
   fn decide(
     &self,
-    start: time::Instant,
     unix_ms: u64,
     state: Option<&path::Path>,
   ) -> Result<String, Error> {
     let mut input = String::new();
     io::Read::read_to_string(&mut io::stdin(), &mut input)?;
-    let (reply, found) = match self.harness.as_str() {
+    let reply = match self.harness.as_str() {
       // Codex shares Claude Code's reply shape for everything but rules.
       "claude" | "codex" => {
         let (parse, respond): (Parse, Respond) = match self.harness.as_str() {
@@ -108,12 +106,12 @@ impl Args {
           }
           event::Kind::PostToolUse(event::Tool::Edit { paths }) => {
             let failure = dispatch::format(&event.cwd, paths);
-            (harness::claude::feedback(failure.as_slice()), None)
+            harness::claude::feedback(failure.as_slice())
           }
           event::Kind::Stop {
             already_blocked: false,
-          } => (harness::claude::feedback(&dispatch::gate(&event.cwd)), None),
-          _ => ("{}".to_owned(), None),
+          } => harness::claude::feedback(&dispatch::gate(&event.cwd)),
+          _ => "{}".to_owned(),
         }
       }
       "antigravity" | "agy" => {
@@ -128,36 +126,16 @@ impl Args {
           )?,
           event::Kind::PostToolUse(event::Tool::Edit { paths }) => {
             drop(dispatch::format(&event.cwd, paths));
-            ("{}".to_owned(), None)
+            "{}".to_owned()
           }
           event::Kind::Stop {
             already_blocked: false,
-          } => (
-            harness::antigravity::feedback(&dispatch::gate(&event.cwd)),
-            None,
-          ),
-          _ => ("{}".to_owned(), None),
+          } => harness::antigravity::feedback(&dispatch::gate(&event.cwd)),
+          _ => "{}".to_owned(),
         }
       }
       _ => return Err(Error::UnknownHarness(self.harness.clone())),
     };
-    if let Some(dir) = state {
-      let entry = journal::Decision {
-        unix_ms,
-        harness: &self.harness,
-        event: &self.event,
-        rule: found.as_ref().map(|(id, _)| id.as_str()),
-        decision: found.as_ref().map(|&(_, decision)| decision),
-        micros: u64::try_from(start.elapsed().as_micros()).unwrap_or(u64::MAX),
-      };
-      if let Err(err) = journal::decision(dir, &entry) {
-        drop(journal::error(
-          dir,
-          unix_ms,
-          &format!("decision log: {err}"),
-        ));
-      }
-    }
     Ok(reply)
   }
 }
@@ -170,8 +148,6 @@ type Respond = fn(Option<&rules::Match>) -> String;
 
 /// Evaluates the rules for a `PreToolUse` call and updates the session.
 ///
-/// Returns the reply and the deciding rule's id and decision.
-///
 /// # Side Effects
 ///
 /// Records skill loads and once-per-session fires in the session file;
@@ -182,7 +158,7 @@ fn pre_tool_use(
   state: Option<&path::Path>,
   unix_ms: u64,
   respond: impl FnOnce(Option<&rules::Match>) -> String,
-) -> Result<(String, Option<(String, event::Decision)>), Error> {
+) -> Result<String, Error> {
   let config = dirs::config().ok_or(Error::NoConfig)?;
   let rules = rules::load(&config.join("rules"))?;
   let id = &event.session_id;
@@ -202,7 +178,6 @@ fn pre_tool_use(
     .as_ref()
     .filter(|found| found.once)
     .map(|found| found.id);
-  let decided = found.map(|found| (found.id.to_owned(), found.decision));
   let loaded = match tool {
     event::Tool::Skill { name } => Some(name.as_str()),
     _ => None,
@@ -224,5 +199,5 @@ fn pre_tool_use(
       ));
     }
   }
-  Ok((reply, decided))
+  Ok(reply)
 }
