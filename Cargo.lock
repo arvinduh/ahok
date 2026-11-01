@@ -15,7 +15,6 @@ dependencies = [
 name = "ahok"
 version = "0.1.1"
 dependencies = [
- "ahok-ci",
  "ahok-dispatch",
  "ahok-doctor",
  "ahok-event",
@@ -29,15 +28,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
-]
-
-[[package]]
-name = "ahok-ci"
-version = "0.1.1"
-dependencies = [
- "serde",
- "serde_json",
- "thiserror",
 ]
 
 [[package]]
