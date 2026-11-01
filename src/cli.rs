@@ -20,9 +20,10 @@ use thiserror;
 #[command(name = "ahok", version)]
 pub enum Args {
   /// Run the git hook rules; called from git's commit-msg and pre-push.
-  #[command(subcommand)]
+  #[command(subcommand, hide = true)]
   Git(git::Args),
   /// Answer one harness hook call: hook JSON on stdin, reply on stdout.
+  #[command(hide = true)]
   Hook(hook::Args),
   /// Apply each workspace's `ahok.toml` to this machine.
   Setup(setup::Args),
