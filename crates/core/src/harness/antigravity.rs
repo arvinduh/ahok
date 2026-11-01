@@ -1,6 +1,7 @@
 //! Antigravity hook adapter.
 //!
-//! Owns Antigravity's hook payload shape and its tool names. Event-name
+//! Owns Antigravity's hook payload shape, its tool names, and where it reads
+//! its files. Event-name
 //! lookup is shared in `harness`; rules are evaluated elsewhere.
 
 use std::path;
@@ -8,9 +9,15 @@ use std::path;
 use serde;
 use serde_json;
 
-use crate::dispatch;
+use crate::check;
 use crate::event;
 use crate::rules;
+
+/// Where Antigravity reads the user's instructions.
+pub const INSTRUCTIONS: &str = "~/.gemini/config/AGENTS.md";
+
+/// The directory Antigravity reads the user's skills from, one per child.
+pub const SKILLS: &str = "~/.gemini/config/skills";
 
 /// The fields of an Antigravity hook payload that rules read.
 #[derive(serde::Deserialize)]
@@ -132,7 +139,7 @@ pub fn respond(found: Option<&rules::Match>) -> String {
 ///
 /// `decision: continue` re-enters the agent loop to fix checks.
 #[must_use]
-pub fn feedback(failures: &[dispatch::Failure]) -> String {
+pub fn feedback(failures: &[check::Failure]) -> String {
   if failures.is_empty() {
     return "{}".to_owned();
   }
@@ -256,7 +263,7 @@ mod tests {
 
   #[test]
   fn stop_feedback_renders_continue() {
-    let failures = [dispatch::Failure {
+    let failures = [check::Failure {
       command: "cargo check".to_owned(),
       output: "error: broken".to_owned(),
     }];

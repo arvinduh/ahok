@@ -5,7 +5,7 @@
 
 mod git;
 mod hook;
-mod link;
+mod setup;
 #[cfg(feature = "update")]
 mod update;
 
@@ -20,12 +20,13 @@ use thiserror;
 #[command(name = "ahok", version)]
 pub enum Args {
   /// Run the git hook rules; called from git's commit-msg and pre-push.
-  #[command(subcommand)]
+  #[command(subcommand, hide = true)]
   Git(git::Args),
   /// Answer one harness hook call: hook JSON on stdin, reply on stdout.
+  #[command(hide = true)]
   Hook(hook::Args),
-  /// Symlink a config repo's files into place, from its `links.toml`.
-  Link(link::Args),
+  /// Apply each workspace's `ahok.toml` to this machine.
+  Setup(setup::Args),
   #[cfg(feature = "update")]
   /// Update the ahok binary to the latest release.
   Update(update::Args),
@@ -42,9 +43,24 @@ pub enum Status {
 /// Why a command could not run.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-  /// `links.toml` could not be read or parsed.
+  /// `ahok.toml` could not be read or parsed.
   #[error(transparent)]
-  Link(#[from] ahok_core::link::Error),
+  Manifest(#[from] ahok_core::manifest::Error),
+  /// A file `[agents]` names could not be read or parsed.
+  #[error(transparent)]
+  Agents(#[from] ahok_core::agents::Error),
+  /// Two workspaces both have `[agents]`; each harness can follow one.
+  #[error(
+    "both {} and {} have [agents]; keep it in one",
+    first.display(),
+    second.display()
+  )]
+  TwoAgents {
+    /// The workspace that claimed `[agents]` first.
+    first: path::PathBuf,
+    /// The workspace that claimed it again.
+    second: path::PathBuf,
+  },
   /// A state file exists but could not be read.
   #[error("{}: {source}", path.display())]
   Read {
@@ -65,7 +81,7 @@ impl Args {
     match self {
       Self::Git(args) => Ok(args.run()),
       Self::Hook(args) => Ok(args.run()),
-      Self::Link(args) => args.run(),
+      Self::Setup(args) => args.run(),
       #[cfg(feature = "update")]
       Self::Update(args) => args.run().map_err(Error::Update),
     }

@@ -6,9 +6,12 @@
 
 #![deny(clippy::print_stdout, clippy::print_stderr)]
 
-pub mod dispatch;
+pub mod agents;
+pub mod check;
+mod de;
 pub mod event;
 pub mod harness;
 pub mod link;
+pub mod manifest;
 pub mod rules;
 pub mod state;

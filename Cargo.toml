@@ -80,6 +80,9 @@ tempfile = { workspace = true, optional = true }
 thiserror.workspace = true
 tokio = { workspace = true, optional = true }
 
+[dev-dependencies]
+serde_json.workspace = true
+
 # Config for 'dist' (cargo-dist): GitHub Releases are the only channel - no
 # crates.io publish.
 [workspace.metadata.dist]

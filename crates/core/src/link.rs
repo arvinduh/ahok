@@ -1,9 +1,9 @@
-//! Symlinks a config repo's files into place, from its `links.toml`.
+//! Puts a workspace's files into place: symlinks, and keys in JSON configs.
 //!
-//! This module owns the `links.toml` schema, target path expansion, and the
-//! safe link step: it never overwrites a real file, moving anything in the
-//! way to `<target>.bak-<stamp>` first. It returns one row per link as data;
-//! printing them belongs to `ahok link`.
+//! This module owns the `[[link]]` schema, target path expansion, and the
+//! safe write steps: it never overwrites a real file it doesn't own, moving
+//! anything in the way to `<target>.bak-<stamp>` first. Reading `ahok.toml`
+//! belongs to `manifest`; printing the rows belongs to `ahok setup`.
 
 use std::env;
 use std::fs;
@@ -14,39 +14,17 @@ use std::time;
 
 use regex;
 use serde;
-use thiserror;
-use toml;
-
-/// Why a repo's links could not be planned.
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-  /// `links.toml` could not be read.
-  #[error("{}: {source}", path.display())]
-  Read {
-    /// The links file.
-    path: path::PathBuf,
-    /// Why reading failed.
-    source: io::Error,
-  },
-  /// `links.toml` is not valid TOML or does not match the schema.
-  #[error("{}: {source}", path.display())]
-  Parse {
-    /// The links file.
-    path: path::PathBuf,
-    /// What the parser rejected.
-    source: toml::de::Error,
-  },
-}
+use serde_json;
 
 /// Which machine the links are for.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Platform {
   /// Linux and WSL.
   Linux,
   /// Native Windows.
   Windows,
-  /// Claude Code cloud sessions: only `cloud = true` entries, at the Linux
-  /// target.
+  /// Claude Code cloud sessions, which use the Linux target.
   Cloud,
 }
 
@@ -78,31 +56,37 @@ impl Platform {
   }
 }
 
-/// The whole `links.toml` file.
-#[derive(Debug, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-struct File {
-  /// Every `[[link]]` table, in order.
-  #[serde(default)]
-  link: Vec<Entry>,
-}
-
 /// One `[[link]]` table, exactly as written.
 #[derive(Debug, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Entry {
+pub struct Link {
   /// Path inside the repo, `/`-separated. A trailing `/*` links each child
   /// into the target directory instead of the source itself.
-  source: String,
-  /// Target on both Linux and Windows.
-  home: Option<String>,
-  /// Target override for Linux.
+  from: String,
+  /// Where the link goes.
+  to: To,
+  /// Platforms to link on; every platform when unset.
+  on: Option<Vec<Platform>>,
+}
+
+/// A link's target: one path everywhere, or one per OS.
+#[derive(Debug, serde::Deserialize)]
+#[serde(untagged)]
+enum To {
+  /// The same path on every platform.
+  Everywhere(String),
+  /// A path per OS; an OS without one is skipped.
+  PerOs(PerOs),
+}
+
+/// A link's target per OS, as `to = { linux = "...", windows = "..." }`.
+#[derive(Debug, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PerOs {
+  /// Target on Linux and in cloud sessions.
   linux: Option<String>,
-  /// Target override for Windows.
+  /// Target on Windows.
   windows: Option<String>,
-  /// Also link in cloud sessions, at the Linux target.
-  #[serde(default)]
-  cloud: bool,
 }
 
 /// How one link came out.
@@ -112,6 +96,8 @@ pub enum Outcome {
   Ok,
   /// Linked now.
   Linked,
+  /// Written now.
+  Written,
   /// Dry run: what would happen (`create`, `backup` or `relink`).
   Would(&'static str),
   /// The source is not in the repo.
@@ -142,36 +128,28 @@ pub struct Row {
   pub note: String,
 }
 
-/// Links every entry of `<repo>/links.toml` for `platform`.
+/// Links each of `links`, whose sources live in `repo`, for `platform`.
 ///
-/// # Errors
-///
-/// When `links.toml` is missing or invalid. Per-link problems are rows,
-/// not errors.
+/// Returns one row per link; a link that fails is a row, not an error.
 ///
 /// # Side Effects
 ///
 /// Unless `dry_run`, creates symlinks and parent directories, and renames
 /// files in the way to `<name>.bak-<unix seconds>`.
-pub fn run(
+#[must_use]
+pub fn apply(
   repo: &path::Path,
+  links: &[Link],
   platform: Platform,
   dry_run: bool,
-) -> Result<Vec<Row>, Error> {
-  let path = repo.join("links.toml");
-  let text = fs::read_to_string(&path).map_err(|source| Error::Read {
-    path: path.clone(),
-    source,
-  })?;
-  let file: File =
-    toml::from_str(&text).map_err(|source| Error::Parse { path, source })?;
+) -> Vec<Row> {
   let stamp = time::SystemTime::now()
     .duration_since(time::UNIX_EPOCH)
     .map_or(0, |d| d.as_secs())
     .to_string();
   let mut rows = Vec::new();
-  for entry in &file.link {
-    let Some(raw) = entry.target(platform) else {
+  for link in links {
+    let Some(raw) = link.target(platform) else {
       continue;
     };
     let target = match expand(raw) {
@@ -185,7 +163,7 @@ pub fn run(
         continue;
       }
     };
-    for (source, target) in pairs(repo, &entry.source, &target) {
+    for (source, target) in pairs(repo, &link.from, &target) {
       let (outcome, note) =
         match link_one(repo, &source, &target, dry_run, &stamp) {
           Ok(result) => result,
@@ -198,20 +176,145 @@ pub fn run(
       });
     }
   }
-  Ok(rows)
+  rows
 }
 
-impl Entry {
-  /// The raw target for `platform`, or `None` when the entry skips it.
-  fn target(&self, platform: Platform) -> Option<&str> {
-    let linux = self.linux.as_ref().or(self.home.as_ref());
-    match platform {
-      Platform::Linux => linux,
-      Platform::Cloud => linux.filter(|_| self.cloud),
-      Platform::Windows => self.windows.as_ref().or(self.home.as_ref()),
+impl Link {
+  /// Links `from` to the same `to` on every platform.
+  pub(crate) fn new(from: String, to: &str) -> Self {
+    Self {
+      from,
+      to: To::Everywhere(to.to_owned()),
+      on: None,
     }
-    .map(String::as_str)
   }
+
+  /// The raw target for `platform`, or `None` when the link skips it.
+  fn target(&self, platform: Platform) -> Option<&str> {
+    if self.on.as_ref().is_some_and(|on| !on.contains(&platform)) {
+      return None;
+    }
+    match (&self.to, platform) {
+      (To::Everywhere(to), _) => Some(to.as_str()),
+      (To::PerOs(per_os), Platform::Windows) => per_os.windows.as_deref(),
+      (To::PerOs(per_os), _) => per_os.linux.as_deref(),
+    }
+  }
+}
+
+/// Keys ahok owns in a JSON config file; it leaves every other key alone.
+#[derive(Debug)]
+pub struct Json {
+  /// The file, written like a link's `to`.
+  pub to: String,
+  /// Each key ahok sets, with its value.
+  pub keys: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Sets each file's keys, keeping the rest of the file; one row per file.
+///
+/// A symlink at the target is replaced by a real file holding the link's
+/// keys, so the write never lands in the link's source. A file that isn't a JSON object is moved to
+/// `<name>.bak-<unix seconds>` first.
+///
+/// # Side Effects
+///
+/// Unless `dry_run`, writes the files and creates their directories.
+#[must_use]
+pub fn write(files: &[Json], dry_run: bool) -> Vec<Row> {
+  let stamp = time::SystemTime::now()
+    .duration_since(time::UNIX_EPOCH)
+    .map_or(0, |d| d.as_secs())
+    .to_string();
+  files
+    .iter()
+    .map(|file| {
+      let target = match expand(&file.to) {
+        Ok(target) => target,
+        Err(note) => {
+          return Row {
+            outcome: Outcome::Failed,
+            target: file.to.clone(),
+            note,
+          };
+        }
+      };
+      let (outcome, note) =
+        match write_one(&target, &file.keys, dry_run, &stamp) {
+          Ok(result) => result,
+          Err(err) => (Outcome::Failed, err.to_string()),
+        };
+      Row {
+        outcome,
+        target: target.display().to_string(),
+        note,
+      }
+    })
+    .collect()
+}
+
+/// Sets `keys` in the JSON object at `target`; returns the outcome and a
+/// note.
+fn write_one(
+  target: &path::Path,
+  keys: &serde_json::Map<String, serde_json::Value>,
+  dry_run: bool,
+  stamp: &str,
+) -> io::Result<(Outcome, String)> {
+  let is_link = target.symlink_metadata().is_ok_and(|m| m.is_symlink());
+  // A link is read through, so its keys carry over into the real file.
+  let text = match fs::read_to_string(target) {
+    Ok(text) => Some(text),
+    Err(err) if err.kind() != io::ErrorKind::NotFound && !is_link => {
+      return Err(err);
+    }
+    Err(_) => None,
+  };
+  let current = text
+    .as_deref()
+    .map(serde_json::from_str::<serde_json::Value>);
+  let (mut object, invalid) = match current {
+    Some(Ok(serde_json::Value::Object(object))) => (object, false),
+    Some(_) => (serde_json::Map::new(), true),
+    None => (serde_json::Map::new(), false),
+  };
+  let before = object.clone();
+  object.extend(keys.clone());
+  if !is_link && !invalid && text.is_some() && object == before {
+    return Ok((Outcome::Ok, "up to date".to_owned()));
+  }
+  let name = target.file_name().unwrap_or_default().to_string_lossy();
+  let (action, note) = if is_link {
+    ("relink", "replaced link with file".to_owned())
+  } else if invalid {
+    ("backup", format!("saved {name}.bak-{stamp}"))
+  } else {
+    ("write", String::new())
+  };
+  if dry_run {
+    return Ok((Outcome::Would(action), note));
+  }
+  if let Some(parent) = target.parent() {
+    fs::create_dir_all(parent)?;
+  }
+  let mut json = serde_json::to_string_pretty(&object)?;
+  json.push('\n');
+  // Write beside the target first, so a failed write leaves it intact.
+  let staged = target.with_file_name(format!("{name}.ahok-{stamp}"));
+  fs::write(&staged, json)?;
+  let swapped = match action {
+    "relink" => remove_link(target),
+    "backup" => {
+      fs::rename(target, target.with_file_name(format!("{name}.bak-{stamp}")))
+    }
+    _ => Ok(()),
+  }
+  .and_then(|()| fs::rename(&staged, target));
+  if let Err(err) = swapped {
+    drop(fs::remove_file(&staged));
+    return Err(err);
+  }
+  Ok((Outcome::Written, note))
 }
 
 /// Expands a leading `~` and every `%NAME%` in a target.
@@ -426,5 +529,86 @@ fn remove_link(link: &path::Path) -> io::Result<()> {
     fs::remove_dir(link).or_else(|_| fs::remove_file(link))
   } else {
     fs::remove_file(link)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn hooks_file(to: &path::Path) -> Json {
+    let mut keys = serde_json::Map::new();
+    keys.insert("hooks".to_owned(), serde_json::json!({ "Stop": [] }));
+    Json {
+      to: to.display().to_string(),
+      keys,
+    }
+  }
+
+  fn read(path: &path::Path) -> serde_json::Value {
+    let text = fs::read_to_string(path).expect("written file");
+    serde_json::from_str(&text).expect("valid JSON")
+  }
+
+  #[test]
+  fn write_sets_keys_and_keeps_the_rest() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let target = dir.path().join("settings.json");
+    fs::write(&target, r#"{"tui":"full","hooks":{"old":1}}"#).expect("seed");
+    let files = [hooks_file(&target)];
+    let rows = write(&files, false);
+    assert!(matches!(rows[0].outcome, Outcome::Written), "{:?}", rows[0]);
+    let json = read(&target);
+    assert_eq!(json["tui"], "full");
+    assert_eq!(json["hooks"], serde_json::json!({ "Stop": [] }));
+    let rows = write(&files, false);
+    assert!(matches!(rows[0].outcome, Outcome::Ok), "{:?}", rows[0]);
+  }
+
+  #[test]
+  fn write_creates_a_missing_file() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let target = dir.path().join("new/hooks.json");
+    let files = [hooks_file(&target)];
+    let rows = write(&files, true);
+    assert!(matches!(rows[0].outcome, Outcome::Would("write")));
+    assert!(!target.exists(), "dry run wrote {}", target.display());
+    let rows = write(&files, false);
+    assert!(matches!(rows[0].outcome, Outcome::Written), "{:?}", rows[0]);
+    assert_eq!(read(&target)["hooks"]["Stop"], serde_json::json!([]));
+  }
+
+  #[test]
+  fn write_backs_up_a_file_that_is_not_an_object() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let target = dir.path().join("settings.json");
+    fs::write(&target, "not json").expect("seed");
+    let rows = write(&[hooks_file(&target)], false);
+    assert!(matches!(rows[0].outcome, Outcome::Written), "{:?}", rows[0]);
+    let backups = fs::read_dir(dir.path())
+      .expect("list dir")
+      .filter_map(Result::ok)
+      .filter(|entry| entry.file_name().to_string_lossy().contains(".bak-"))
+      .count();
+    assert_eq!(backups, 1, "expected one backup");
+    assert!(read(&target)["hooks"].is_object(), "hooks set");
+  }
+
+  #[cfg(unix)]
+  #[test]
+  fn write_replaces_a_symlink_with_a_file() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let source = dir.path().join("repo.json");
+    fs::write(&source, r#"{"tui":"full"}"#).expect("seed");
+    let target = dir.path().join("settings.json");
+    std::os::unix::fs::symlink(&source, &target).expect("link");
+    let rows = write(&[hooks_file(&target)], false);
+    assert!(matches!(rows[0].outcome, Outcome::Written), "{:?}", rows[0]);
+    assert!(
+      !target.symlink_metadata().expect("meta").is_symlink(),
+      "file"
+    );
+    assert_eq!(read(&source), serde_json::json!({ "tui": "full" }));
+    assert_eq!(read(&target)["tui"], "full");
   }
 }

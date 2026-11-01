@@ -19,6 +19,7 @@ dependencies = [
  "axoupdater",
  "clap",
  "semver",
+ "serde_json",
  "tempfile",
  "thiserror",
  "tokio",
