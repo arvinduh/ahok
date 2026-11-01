@@ -96,8 +96,6 @@ pub struct Rule {
   /// Branches a push may not target.
   #[serde(default)]
   protected_branches: Vec<String>,
-  /// Behavior when ahok fails while checking the rule.
-  fail: Option<Fail>,
 }
 
 /// The lifecycle point a rule applies to.
@@ -128,14 +126,6 @@ enum GitHook {
   CommitMsg,
   /// Checks the refs being pushed.
   PrePush,
-}
-
-/// How a rule behaves when ahok itself fails while checking it.
-#[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum Fail {
-  /// Block the call instead of the default fail-open allow.
-  Closed,
 }
 
 /// Compiles a regex field, so a bad pattern fails loading with its file.
