@@ -252,3 +252,55 @@ fn refuses_two_workspaces_with_agents() {
   let stderr = String::from_utf8_lossy(&output.stderr);
   assert!(stderr.contains("keep it in one"), "{stderr}");
 }
+
+#[cfg(unix)]
+#[test]
+fn git_hooks_run_the_workspace_rules() {
+  let rules = path::Path::new(env!("CARGO_MANIFEST_DIR"))
+    .join("crates/core/tests/fixtures/rules");
+  let manifest = format!(
+    "[agents]\nharnesses = [\"git\"]\nrules = \"{}\"\n",
+    rules.display()
+  );
+  let (repo, out) = setup("git", &manifest);
+  let (ok, stdout) = link(&repo, &out, &[]);
+  assert!(ok, "{stdout}");
+  assert!(stdout.contains("core.hooksPath"), "{stdout}");
+  let (ok, stdout) = link(&repo, &out, &["--check"]);
+  assert!(ok, "rerun is clean: {stdout}");
+  let bin = path::Path::new(env!("CARGO_BIN_EXE_ahok"));
+  let bin_dir = bin.parent().expect("the binary has a directory");
+  let paths = env::var_os("PATH").unwrap_or_default();
+  let paths = env::split_paths(&paths);
+  let path = env::join_paths(std::iter::once(bin_dir.to_owned()).chain(paths))
+    .expect("PATH joins");
+  let work = out.join("work");
+  fs::create_dir_all(&work).expect("temp dir");
+  let git = |args: &[&str]| {
+    process::Command::new("git")
+      .args(["-c", "user.name=t", "-c", "user.email=t@t"])
+      .args(args)
+      .current_dir(&work)
+      .env("HOME", &out)
+      .env("PATH", &path)
+      .output()
+      .expect("git runs")
+  };
+  assert!(git(&["init", "-q"]).status.success(), "git init");
+  let bad = git(&["commit", "-q", "--allow-empty", "-m", "Fixed stuff."]);
+  let stderr = String::from_utf8_lossy(&bad.stderr);
+  assert!(!bad.status.success(), "the shim must stop a bad message");
+  assert!(
+    stderr.contains("[ahok conventional-commit-msg]"),
+    "{stderr}"
+  );
+  let good = git(&[
+    "commit",
+    "-q",
+    "--allow-empty",
+    "-m",
+    "feat(git): add hooks",
+  ]);
+  let stderr = String::from_utf8_lossy(&good.stderr);
+  assert!(good.status.success(), "{stderr}");
+}
