@@ -64,16 +64,14 @@ fn run_harness(
 }
 
 #[test]
-fn denied_command_replies_and_logs() {
+fn denied_command_replies() {
   let payload = r#"{"session_id":"s","tool_name":"Bash",
     "tool_input":{"command":"rustfmt src/main.rs"}}"#;
-  let (stdout, state) = hook("deny", "PreToolUse", payload);
+  let (stdout, _) = hook("deny", "PreToolUse", payload);
   assert!(
     stdout.contains(r#""permissionDecision":"deny""#),
     "{stdout}"
   );
-  let log = fs::read_to_string(state.join("decisions.jsonl")).unwrap();
-  assert!(log.contains(r#""rule":"format-via-fml""#), "{log}");
 }
 
 #[test]
@@ -101,26 +99,21 @@ fn skill_reminder_fires_once_per_session() {
 }
 
 #[test]
-fn antigravity_denied_command_replies_and_logs() {
+fn antigravity_denied_command_replies() {
   let payload = r#"{"conversationId":"agy-1","toolCall":{"name":"run_command",
     "args":{"CommandLine":"rustfmt src/main.rs"}}}"#;
-  let (stdout, state) =
+  let (stdout, _) =
     hook_harness("antigravity", "agy-deny", "PreToolUse", payload);
   assert!(stdout.contains(r#""decision":"deny""#), "{stdout}");
   assert!(stdout.contains("[ahok format-via-fml]"), "{stdout}");
-  let log = fs::read_to_string(state.join("decisions.jsonl")).unwrap();
-  assert!(log.contains(r#""rule":"format-via-fml""#), "{log}");
-  assert!(log.contains(r#""harness":"antigravity""#), "{log}");
 }
 
 #[test]
 fn agy_alias_works_identically() {
   let payload = r#"{"conversationId":"agy-2","toolCall":{"name":"run_command",
     "args":{"CommandLine":"rustfmt src/main.rs"}}}"#;
-  let (stdout, state) = hook_harness("agy", "agy-alias", "PreToolUse", payload);
+  let (stdout, _) = hook_harness("agy", "agy-alias", "PreToolUse", payload);
   assert!(stdout.contains(r#""decision":"deny""#), "{stdout}");
-  let log = fs::read_to_string(state.join("decisions.jsonl")).unwrap();
-  assert!(log.contains(r#""harness":"agy""#), "{log}");
 }
 
 #[test]
@@ -140,17 +133,14 @@ fn antigravity_malformed_payload_fails_open_with_allow() {
 }
 
 #[test]
-fn codex_ask_rule_denies_and_logs() {
+fn codex_ask_rule_denies() {
   let payload = r#"{"session_id":"cx-1","cwd":"/repo","tool_name":"Bash",
     "tool_input":{"command":"git commit -m x"}}"#;
-  let (stdout, state) =
-    hook_harness("codex", "codex-ask", "PreToolUse", payload);
+  let (stdout, _) = hook_harness("codex", "codex-ask", "PreToolUse", payload);
   assert!(
     stdout.contains(r#""permissionDecision":"deny""#),
     "{stdout}"
   );
-  let log = fs::read_to_string(state.join("decisions.jsonl")).unwrap();
-  assert!(log.contains(r#""harness":"codex""#), "{log}");
 }
 
 #[test]

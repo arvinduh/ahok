@@ -70,15 +70,7 @@ pub enum Tool {
 
 /// What happens to a call a rule matched; earlier variants win.
 #[derive(
-  Clone,
-  Copy,
-  Debug,
-  PartialEq,
-  Eq,
-  PartialOrd,
-  Ord,
-  serde::Deserialize,
-  serde::Serialize,
+  Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize,
 )]
 #[serde(rename_all = "lowercase")]
 pub enum Decision {

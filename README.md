@@ -97,7 +97,6 @@ Two rule kinds behave differently, because Codex can't do what they need:
 | `ahok git <hook> [args]`       | Runs the `GitHook` rules from `commit-msg`/`pre-push`. |
 | `ahok link [repo] [--dry-run]` | Symlinks a repo's configs from its `links.toml`.       |
 | `ahok update [--check]`        | Updates `ahok` in place to the latest release.         |
-| `ahok stats`                   | Shows p50/p99 hook latency and rule hit counts.        |
 
 `ahok git` runs from global git hooks: point `core.hooksPath` at scripts that
 call `ahok git commit-msg "$@"` and `ahok git pre-push "$@"` (the agents repo
