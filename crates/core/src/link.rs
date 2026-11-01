@@ -1,9 +1,9 @@
-//! Symlinks a config repo's files into place, from its `links.toml`.
+//! Symlinks a config repo's files into place, from its `[[link]]` tables.
 //!
-//! This module owns the `links.toml` schema, target path expansion, and the
+//! This module owns the `[[link]]` schema, target path expansion, and the
 //! safe link step: it never overwrites a real file, moving anything in the
-//! way to `<target>.bak-<stamp>` first. It returns one row per link as data;
-//! printing them belongs to `ahok link`.
+//! way to `<target>.bak-<stamp>` first. Reading `ahok.toml` belongs to
+//! `manifest`; printing the rows belongs to `ahok setup`.
 
 use std::env;
 use std::fs;
@@ -14,39 +14,16 @@ use std::time;
 
 use regex;
 use serde;
-use thiserror;
-use toml;
-
-/// Why a repo's links could not be planned.
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-  /// `links.toml` could not be read.
-  #[error("{}: {source}", path.display())]
-  Read {
-    /// The links file.
-    path: path::PathBuf,
-    /// Why reading failed.
-    source: io::Error,
-  },
-  /// `links.toml` is not valid TOML or does not match the schema.
-  #[error("{}: {source}", path.display())]
-  Parse {
-    /// The links file.
-    path: path::PathBuf,
-    /// What the parser rejected.
-    source: toml::de::Error,
-  },
-}
 
 /// Which machine the links are for.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Platform {
   /// Linux and WSL.
   Linux,
   /// Native Windows.
   Windows,
-  /// Claude Code cloud sessions: only `cloud = true` entries, at the Linux
-  /// target.
+  /// Claude Code cloud sessions, which use the Linux target.
   Cloud,
 }
 
@@ -78,31 +55,37 @@ impl Platform {
   }
 }
 
-/// The whole `links.toml` file.
-#[derive(Debug, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-struct File {
-  /// Every `[[link]]` table, in order.
-  #[serde(default)]
-  link: Vec<Entry>,
-}
-
 /// One `[[link]]` table, exactly as written.
 #[derive(Debug, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Entry {
+pub struct Link {
   /// Path inside the repo, `/`-separated. A trailing `/*` links each child
   /// into the target directory instead of the source itself.
-  source: String,
-  /// Target on both Linux and Windows.
-  home: Option<String>,
-  /// Target override for Linux.
+  from: String,
+  /// Where the link goes.
+  to: To,
+  /// Platforms to link on; every platform when unset.
+  on: Option<Vec<Platform>>,
+}
+
+/// A link's target: one path everywhere, or one per OS.
+#[derive(Debug, serde::Deserialize)]
+#[serde(untagged)]
+enum To {
+  /// The same path on every platform.
+  Everywhere(String),
+  /// A path per OS; an OS without one is skipped.
+  PerOs(PerOs),
+}
+
+/// A link's target per OS, as `to = { linux = "...", windows = "..." }`.
+#[derive(Debug, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PerOs {
+  /// Target on Linux and in cloud sessions.
   linux: Option<String>,
-  /// Target override for Windows.
+  /// Target on Windows.
   windows: Option<String>,
-  /// Also link in cloud sessions, at the Linux target.
-  #[serde(default)]
-  cloud: bool,
 }
 
 /// How one link came out.
@@ -142,36 +125,28 @@ pub struct Row {
   pub note: String,
 }
 
-/// Links every entry of `<repo>/links.toml` for `platform`.
+/// Links each of `links`, whose sources live in `repo`, for `platform`.
 ///
-/// # Errors
-///
-/// When `links.toml` is missing or invalid. Per-link problems are rows,
-/// not errors.
+/// Returns one row per link; a link that fails is a row, not an error.
 ///
 /// # Side Effects
 ///
 /// Unless `dry_run`, creates symlinks and parent directories, and renames
 /// files in the way to `<name>.bak-<unix seconds>`.
-pub fn run(
+#[must_use]
+pub fn apply(
   repo: &path::Path,
+  links: &[Link],
   platform: Platform,
   dry_run: bool,
-) -> Result<Vec<Row>, Error> {
-  let path = repo.join("links.toml");
-  let text = fs::read_to_string(&path).map_err(|source| Error::Read {
-    path: path.clone(),
-    source,
-  })?;
-  let file: File =
-    toml::from_str(&text).map_err(|source| Error::Parse { path, source })?;
+) -> Vec<Row> {
   let stamp = time::SystemTime::now()
     .duration_since(time::UNIX_EPOCH)
     .map_or(0, |d| d.as_secs())
     .to_string();
   let mut rows = Vec::new();
-  for entry in &file.link {
-    let Some(raw) = entry.target(platform) else {
+  for link in links {
+    let Some(raw) = link.target(platform) else {
       continue;
     };
     let target = match expand(raw) {
@@ -185,7 +160,7 @@ pub fn run(
         continue;
       }
     };
-    for (source, target) in pairs(repo, &entry.source, &target) {
+    for (source, target) in pairs(repo, &link.from, &target) {
       let (outcome, note) =
         match link_one(repo, &source, &target, dry_run, &stamp) {
           Ok(result) => result,
@@ -198,19 +173,20 @@ pub fn run(
       });
     }
   }
-  Ok(rows)
+  rows
 }
 
-impl Entry {
-  /// The raw target for `platform`, or `None` when the entry skips it.
+impl Link {
+  /// The raw target for `platform`, or `None` when the link skips it.
   fn target(&self, platform: Platform) -> Option<&str> {
-    let linux = self.linux.as_ref().or(self.home.as_ref());
-    match platform {
-      Platform::Linux => linux,
-      Platform::Cloud => linux.filter(|_| self.cloud),
-      Platform::Windows => self.windows.as_ref().or(self.home.as_ref()),
+    if self.on.as_ref().is_some_and(|on| !on.contains(&platform)) {
+      return None;
     }
-    .map(String::as_str)
+    match (&self.to, platform) {
+      (To::Everywhere(to), _) => Some(to.as_str()),
+      (To::PerOs(per_os), Platform::Windows) => per_os.windows.as_deref(),
+      (To::PerOs(per_os), _) => per_os.linux.as_deref(),
+    }
   }
 }
 

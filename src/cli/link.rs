@@ -6,6 +6,7 @@
 use std::path;
 
 use ahok_core::link;
+use ahok_core::manifest;
 use clap;
 
 use crate::cli;
@@ -13,7 +14,7 @@ use crate::cli;
 /// Arguments for `ahok link`.
 #[derive(clap::Args)]
 pub struct Args {
-  /// The repo holding `links.toml`.
+  /// The repo holding `ahok.toml`.
   #[arg(default_value = ".")]
   repo: path::PathBuf,
   /// Which targets to link: linux, windows or cloud. Defaults to this
@@ -34,7 +35,8 @@ impl Args {
         source,
       })?;
     let platform = self.platform.unwrap_or_else(link::Platform::current);
-    let rows = link::run(&repo, platform, self.dry_run)?;
+    let manifest = manifest::load(&repo)?;
+    let rows = link::apply(&repo, &manifest.link, platform, self.dry_run);
     let labels: Vec<String> =
       rows.iter().map(|row| label(&row.outcome)).collect();
     let width = labels.iter().map(String::len).max().unwrap_or(0);

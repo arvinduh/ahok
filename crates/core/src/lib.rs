@@ -10,5 +10,6 @@ pub mod dispatch;
 pub mod event;
 pub mod harness;
 pub mod link;
+pub mod manifest;
 pub mod rules;
 pub mod state;

@@ -1,4 +1,4 @@
-//! Process-level contract of `ahok link`: it links what `links.toml` names,
+//! Process-level contract of `ahok link`: it links what `ahok.toml` names,
 //! never loses a real file, and fails loudly on what it cannot link.
 
 use std::env;
@@ -16,7 +16,7 @@ fn setup(name: &str, links: &str) -> (path::PathBuf, path::PathBuf) {
   fs::create_dir_all(repo.join("skills").join("two")).expect("temp dir");
   fs::create_dir_all(&out).expect("temp dir");
   fs::write(repo.join("a.txt"), "a").expect("temp file");
-  fs::write(repo.join("links.toml"), links).expect("temp file");
+  fs::write(repo.join("ahok.toml"), links).expect("temp file");
   (repo, out)
 }
 
@@ -42,9 +42,8 @@ fn points_to(link: &path::Path, source: &path::Path) -> bool {
 
 const ONE: &str = r#"
 [[link]]
-source = "a.txt"
-linux = "%OUT%/nested/a.txt"
-windows = "%OUT%/nested/a.txt"
+from = "a.txt"
+to = "%OUT%/nested/a.txt"
 "#;
 
 #[test]
@@ -87,16 +86,16 @@ fn dry_run_changes_nothing() {
 }
 
 #[test]
-fn expands_children_and_filters_cloud() {
+fn expands_children_and_filters_by_platform() {
   let links = r#"
 [[link]]
-source = "skills/*"
-home = "%OUT%/skills"
-cloud = true
+from = "skills/*"
+to = "%OUT%/skills"
 
 [[link]]
-source = "a.txt"
-home = "%OUT%/a.txt"
+from = "a.txt"
+to = "%OUT%/a.txt"
+on = ["linux", "windows"]
 "#;
   let (repo, out) = setup("cloud", links);
   let (ok, stdout) = link(&repo, &out, &["--platform", "cloud"]);
@@ -105,19 +104,19 @@ home = "%OUT%/a.txt"
     let source = repo.join("skills").join(name);
     assert!(points_to(&out.join("skills").join(name), &source));
   }
-  assert!(!out.join("a.txt").exists(), "a.txt is not marked cloud");
+  assert!(!out.join("a.txt").exists(), "a.txt leaves out cloud");
 }
 
 #[test]
 fn fails_on_missing_source_and_unset_variable() {
   let links = r#"
 [[link]]
-source = "gone.txt"
-home = "%OUT%/gone.txt"
+from = "gone.txt"
+to = "%OUT%/gone.txt"
 
 [[link]]
-source = "a.txt"
-home = "%AHOK_TEST_UNSET%/a.txt"
+from = "a.txt"
+to = "%AHOK_TEST_UNSET%/a.txt"
 "#;
   let (repo, out) = setup("missing", links);
   let (ok, stdout) = link(&repo, &out, &[]);
@@ -128,8 +127,29 @@ home = "%AHOK_TEST_UNSET%/a.txt"
 
 #[test]
 fn rejects_unknown_fields() {
-  let links = "[[link]]\nsource = \"a.txt\"\nhom = \"%OUT%/a.txt\"\n";
+  let links = "[[link]]\nfrom = \"a.txt\"\nt = \"%OUT%/a.txt\"\n";
   let (repo, out) = setup("schema", links);
   let (ok, _) = link(&repo, &out, &[]);
   assert!(!ok);
+}
+
+#[test]
+fn rejects_unknown_os_keys() {
+  let links = "[[link]]\nfrom = \"a.txt\"\nto = { linx = \"%OUT%/a\" }\n";
+  let (repo, out) = setup("os-schema", links);
+  let (ok, _) = link(&repo, &out, &[]);
+  assert!(!ok);
+}
+
+#[test]
+fn links_a_per_os_target_only_on_that_os() {
+  let links = r#"
+[[link]]
+from = "a.txt"
+to = { windows = "%OUT%/a.txt" }
+"#;
+  let (repo, out) = setup("per-os", links);
+  let (ok, stdout) = link(&repo, &out, &["--platform", "linux"]);
+  assert!(ok, "{stdout}");
+  assert!(!out.join("a.txt").exists(), "no linux target, so no link");
 }

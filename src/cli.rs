@@ -42,9 +42,9 @@ pub enum Status {
 /// Why a command could not run.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-  /// `links.toml` could not be read or parsed.
+  /// `ahok.toml` could not be read or parsed.
   #[error(transparent)]
-  Link(#[from] ahok_core::link::Error),
+  Manifest(#[from] ahok_core::manifest::Error),
   /// A state file exists but could not be read.
   #[error("{}: {source}", path.display())]
   Read {
