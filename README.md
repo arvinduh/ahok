@@ -1,9 +1,9 @@
 # ahok
 
 A fast, stateless control plane for coding-agent harnesses. One `ahok.toml`
-places your instructions, skills and dotfiles, and wires Claude Code and Codex
-to `ahok hook`, which enforces your rules before each tool call and runs your
-checks after edits and when the agent stops.
+places your instructions, skills and dotfiles, and wires Claude Code, Codex and
+git to `ahok hook`, which enforces your rules before each tool call or commit
+and runs your checks after edits, when the agent stops, and on commit.
 
 ## Install
 
@@ -30,22 +30,29 @@ Update in place anytime with `ahok update`.
 
 ## Commands
 
-| Command                               | Does                                                   |
-| ------------------------------------- | ------------------------------------------------------ |
-| `ahok setup [repo...] [--check]`      | Applies each workspace's `ahok.toml`.                  |
-| `ahok update [--check]`               | Updates `ahok` in place to the latest release.         |
-| `ahok hook -C <ws> <harness> <event>` | Answers one hook call; `setup` registers it.           |
-| `ahok git <hook> [args]`              | Runs the `GitHook` rules from `commit-msg`/`pre-push`. |
+| Command                               | Does                                           |
+| ------------------------------------- | ---------------------------------------------- |
+| `ahok setup [repo...] [--check]`      | Applies each workspace's `ahok.toml`.          |
+| `ahok update [--check]`               | Updates `ahok` in place to the latest release. |
+| `ahok hook -C <ws> <harness> <event>` | Answers one hook call; `setup` registers it.   |
 
 ## `ahok.toml`
 
 `ahok setup` reads `ahok.toml` at the root of each workspace (default: the
-current directory) and puts it into place. `--check` changes nothing and exits 1
-if anything is out of date.
+current directory) and puts it into place. A workspace can be a git URL: it is
+cloned to `~/.<name>`, or fast-forwarded if already there, so a new machine
+needs one command:
+
+```sh
+ahok setup https://github.com/you/agents.git https://github.com/you/dotfiles.git
+```
+
+Every manifest loads before anything changes, so a broken one changes nothing.
+`--check` changes nothing and exits 1 if anything is out of date.
 
 ```toml
 [agents]
-harnesses = ["claude", "codex", "agy"]
+harnesses = ["claude", "codex", "agy", "git"]
 instructions = "AGENTS.md"      # linked to each harness's instructions file
 skills = "skills"               # each child linked into each harness's skills
 rules = "rules"                 # *.toml rules checked before each tool call
@@ -56,7 +63,8 @@ on = ["edit"]                   # edit: the edited files
 run = "fml fmt {files}"         # {files} becomes the changed files
 
 [[check]]
-on = ["stop"]                   # stop: every file changed since the branch base
+on = ["stop", "commit"]         # stop: files changed since the branch base
+                                # commit: the staged files
 run = "cargo clippy --all-targets -- -D warnings"
 changed = ["*.rs"]              # skip unless a changed file matches
 
@@ -99,12 +107,12 @@ do what they need:
 
 ## Git hooks
 
-`ahok git` runs from global git hooks: point `core.hooksPath` at scripts that
-call `ahok git commit-msg "$@"` and `ahok git pre-push "$@"` (the agents repo
-ships them in `git/hooks/`). It reads rules from `$AHOK_CONFIG_DIR/rules`
-(default `~/.agents`). A broken rule prints its reason and exits 1, which stops
-git; if the rules fail to load, it warns and lets the commit through. The diff
-budget counts added plus deleted lines of the staged diff.
+With `"git"` in `harnesses`, `setup` writes `commit-msg` and `pre-push` hooks to
+`~/.config/ahok/git-hooks` and points `core.hooksPath` there in `~/.gitconfig`.
+Each runs `ahok hook -C <workspace> git <hook>`, then the repository's own hook.
+A broken `GitHook` rule or a failed commit check prints its reason and stops
+git; a missing ahok or rules that fail to load never block it. The diff budget
+counts added plus deleted lines of the staged diff.
 
 State lives in `%LOCALAPPDATA%\ahok` on Windows and `~/.local/state/ahok`
 elsewhere: `errors.log` and `sessions/`.
