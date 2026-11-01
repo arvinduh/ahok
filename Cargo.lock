@@ -15,12 +15,7 @@ dependencies = [
 name = "ahok"
 version = "0.1.1"
 dependencies = [
- "ahok-dispatch",
- "ahok-event",
- "ahok-harness",
- "ahok-link",
- "ahok-rules",
- "ahok-state",
+ "ahok-core",
  "axoupdater",
  "clap",
  "semver",
@@ -30,62 +25,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "ahok-dispatch"
+name = "ahok-core"
 version = "0.1.1"
 dependencies = [
- "tempfile",
-]
-
-[[package]]
-name = "ahok-event"
-version = "0.1.1"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "ahok-harness"
-version = "0.1.1"
-dependencies = [
- "ahok-dispatch",
- "ahok-event",
- "ahok-rules",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "ahok-link"
-version = "0.1.1"
-dependencies = [
- "regex",
- "serde",
- "thiserror",
- "toml",
-]
-
-[[package]]
-name = "ahok-rules"
-version = "0.1.1"
-dependencies = [
- "ahok-event",
- "ahok-state",
  "globset",
  "regex",
  "serde",
+ "serde_json",
+ "tempfile",
  "thiserror",
  "toml",
  "tree-sitter",
  "tree-sitter-bash",
-]
-
-[[package]]
-name = "ahok-state"
-version = "0.1.1"
-dependencies = [
- "serde",
- "serde_json",
 ]
 
 [[package]]

@@ -1,18 +1,17 @@
 //! Harness adapters: each harness's hook JSON in, `event::Event` out.
 //!
-//! Each submodule owns one harness's wire format. This crate owns what they
+//! Each submodule owns one harness's wire format. This module owns what they
 //! share: event-name lookup and the error type. Reading stdin and writing
 //! stdout belong to the binary.
-
-#![deny(clippy::print_stdout, clippy::print_stderr)]
 
 pub mod antigravity;
 pub mod claude;
 pub mod codex;
 
-use event;
 use serde_json;
 use thiserror;
+
+use crate::event;
 
 /// Why a hook payload could not become an `event::Event`.
 #[derive(Debug, thiserror::Error)]

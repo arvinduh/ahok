@@ -1,21 +1,20 @@
 //! Rules from `rules/*.toml`: their schema, loading, and evaluation.
 //!
-//! This crate owns the on-disk rule format, which the rules files in the
+//! This module owns the on-disk rule format, which the rules files in the
 //! agents repo share with ahok, and matching events against it. Finding the
 //! rules directory and acting on a decision belong to the caller.
-
-#![deny(clippy::print_stdout, clippy::print_stderr)]
 
 use std::fs;
 use std::io;
 use std::path;
 
-use event;
 use globset;
 use regex;
 use serde;
 use thiserror;
 use toml;
+
+use crate::event;
 
 mod eval;
 mod git;

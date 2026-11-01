@@ -5,11 +5,12 @@
 
 use std::path;
 
-use dispatch;
-use event;
-use rules;
 use serde;
 use serde_json;
+
+use crate::dispatch;
+use crate::event;
+use crate::rules;
 
 /// The fields of an Antigravity hook payload that rules read.
 #[derive(serde::Deserialize)]
@@ -75,17 +76,20 @@ struct ToolArgs {
 ///
 /// # Errors
 ///
-/// `crate::Error::Json` for a malformed payload, and
-/// `crate::Error::UnknownEvent` for an unsupported `event_name`.
+/// `crate::harness::Error::Json` for a malformed payload, and
+/// `crate::harness::Error::UnknownEvent` for an unsupported `event_name`.
 pub fn parse(
   event_name: &str,
   json: &str,
-) -> Result<event::Event, crate::Error> {
+) -> Result<event::Event, crate::harness::Error> {
   let payload: Payload = serde_json::from_str(json)?;
   let already_blocked = payload.stop_hook_active
     || payload.execution_num.is_some_and(|num| num > 1);
-  let kind =
-    crate::kind(event_name, || tool(payload.tool_call), already_blocked)?;
+  let kind = crate::harness::kind(
+    event_name,
+    || tool(payload.tool_call),
+    already_blocked,
+  )?;
   let cwd = payload
     .workspace_paths
     .into_iter()

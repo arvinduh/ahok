@@ -1,10 +1,8 @@
 //! Built-in checks the hook runs after edits and at the end of a turn.
 //!
-//! This crate runs `fml`, `cargo` and `basedpyright` as subprocesses and
+//! This module runs `fml`, `cargo` and `basedpyright` as subprocesses and
 //! returns their failures as data. How a failure is shown to the agent
 //! belongs to the harness adapters.
-
-#![deny(clippy::print_stdout, clippy::print_stderr)]
 
 use std::ffi;
 use std::io;

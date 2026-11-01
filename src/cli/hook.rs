@@ -3,21 +3,21 @@
 //! This module owns the hook process contract: read the payload from stdin,
 //! always write a JSON reply to stdout, and end `Clean` so the process exits
 //! 0. Any failure is logged to `errors.log` and the call is allowed (fail
-//! open). Parsing, rules, and replies come from the crates.
+//! open). Parsing, rules, and replies come from `ahok_core`.
 
 use std::env;
 use std::io;
 use std::path;
 use std::time;
 
+use ahok_core::dispatch;
+use ahok_core::event;
+use ahok_core::harness;
+use ahok_core::rules;
+use ahok_core::state::dirs;
+use ahok_core::state::journal;
+use ahok_core::state::session;
 use clap;
-use dispatch;
-use event;
-use harness;
-use rules;
-use state::dirs;
-use state::journal;
-use state::session;
 use thiserror;
 
 use crate::cli;

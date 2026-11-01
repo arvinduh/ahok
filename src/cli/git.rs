@@ -12,9 +12,9 @@ use std::io;
 use std::path;
 use std::process;
 
+use ahok_core::rules;
+use ahok_core::state::dirs;
 use clap;
-use rules;
-use state::dirs;
 
 use crate::cli;
 
