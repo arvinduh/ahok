@@ -91,12 +91,12 @@ Two rule kinds behave differently, because Codex can't do what they need:
 
 ## Commands
 
-| Command                        | Does                                                   |
-| ------------------------------ | ------------------------------------------------------ |
-| `ahok hook <harness> <event>`  | Answers one hook call (`claude`, `codex`, `agy`).      |
-| `ahok git <hook> [args]`       | Runs the `GitHook` rules from `commit-msg`/`pre-push`. |
-| `ahok link [repo] [--dry-run]` | Symlinks a repo's configs from its `links.toml`.       |
-| `ahok update [--check]`        | Updates `ahok` in place to the latest release.         |
+| Command                          | Does                                                   |
+| -------------------------------- | ------------------------------------------------------ |
+| `ahok setup [repo...] [--check]` | Applies each workspace's `ahok.toml`.                  |
+| `ahok update [--check]`          | Updates `ahok` in place to the latest release.         |
+| `ahok hook <harness> <event>`    | Answers one hook call (`claude`, `codex`, `agy`).      |
+| `ahok git <hook> [args]`         | Runs the `GitHook` rules from `commit-msg`/`pre-push`. |
 
 `ahok git` runs from global git hooks: point `core.hooksPath` at scripts that
 call `ahok git commit-msg "$@"` and `ahok git pre-push "$@"` (the agents repo
@@ -104,12 +104,25 @@ ships them in `git/hooks/`). A broken rule prints its reason and exits 1, which
 stops git; if the rules fail to load, it warns and lets the commit through. The
 diff budget counts added plus deleted lines of the staged diff.
 
-`ahok link` reads `[[link]]` entries with a `source` path in the repo and a
-target in `home`, `linux` or `windows` (`~` and `%VAR%` expand). A trailing `/*`
-on `source` links each child. `cloud = true` also links the entry in Claude Code
-cloud sessions, which ahok detects from `CLAUDE_CODE_REMOTE`. It never
-overwrites a real file: it moves it to `<name>.bak-<time>` first.
+`ahok setup` reads `ahok.toml` at the root of each workspace (default: the
+current directory) and links its `[[link]]` tables:
+
+```toml
+[[link]]
+from = "skills/*"     # a trailing /* links each child
+to = "~/.claude/skills"
+
+[[link]]
+from = "format/ruff.toml"
+to = { linux = "~/.config/ruff/ruff.toml", windows = "%APPDATA%/ruff/ruff.toml" }
+on = ["linux", "windows"] # default: linux, windows and cloud
+```
+
+`~` and `%VAR%` expand. Claude Code cloud sessions, which ahok detects from
+`CLAUDE_CODE_REMOTE`, use the linux target. It never overwrites a real file: it
+moves it to `<name>.bak-<time>` first. `--check` changes nothing and exits 1 if
+anything is out of date.
 
 Config comes from `$AHOK_CONFIG_DIR` (default `~/.agents`). State lives in
 `%LOCALAPPDATA%\ahok` on Windows and `~/.local/state/ahok` elsewhere:
-`decisions.jsonl`, `errors.log`, and `sessions/`.
+`errors.log` and `sessions/`.

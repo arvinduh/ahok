@@ -1,4 +1,4 @@
-//! Process-level contract of `ahok link`: it links what `ahok.toml` names,
+//! Process-level contract of `ahok setup`: it links what `ahok.toml` names,
 //! never loses a real file, and fails loudly on what it cannot link.
 
 use std::env;
@@ -20,11 +20,11 @@ fn setup(name: &str, links: &str) -> (path::PathBuf, path::PathBuf) {
   (repo, out)
 }
 
-/// Runs `ahok link <repo> <args>` with `%OUT%` set; returns success and
+/// Runs `ahok setup <repo> <args>` with `%OUT%` set; returns success and
 /// stdout.
 fn link(repo: &path::Path, out: &path::Path, args: &[&str]) -> (bool, String) {
   let output = process::Command::new(env!("CARGO_BIN_EXE_ahok"))
-    .arg("link")
+    .arg("setup")
     .arg(repo)
     .args(args)
     .env("OUT", out)
@@ -77,12 +77,14 @@ fn backs_up_a_real_file() {
 }
 
 #[test]
-fn dry_run_changes_nothing() {
-  let (repo, out) = setup("dry", ONE);
-  let (ok, stdout) = link(&repo, &out, &["--dry-run"]);
-  assert!(ok);
+fn check_changes_nothing_and_fails_when_stale() {
+  let (repo, out) = setup("check", ONE);
+  let (ok, stdout) = link(&repo, &out, &["--check"]);
+  assert!(!ok, "a missing link is out of date");
   assert!(stdout.starts_with("would create"), "{stdout}");
   assert!(!out.join("nested").exists());
+  assert!(link(&repo, &out, &[]).0);
+  assert!(link(&repo, &out, &["--check"]).0, "up to date after setup");
 }
 
 #[test]
@@ -152,4 +154,28 @@ to = { windows = "%OUT%/a.txt" }
   let (ok, stdout) = link(&repo, &out, &["--platform", "linux"]);
   assert!(ok, "{stdout}");
   assert!(!out.join("a.txt").exists(), "no linux target, so no link");
+}
+
+#[test]
+fn applies_every_repo_given() {
+  let (first, out) = setup("multi-a", ONE);
+  let other = r#"
+[[link]]
+from = "a.txt"
+to = "%OUT%/b.txt"
+"#;
+  let (second, _) = setup("multi-b", other);
+  let output = process::Command::new(env!("CARGO_BIN_EXE_ahok"))
+    .arg("setup")
+    .args([&first, &second])
+    .env("OUT", &out)
+    .env_remove("CLAUDE_CODE_REMOTE")
+    .output()
+    .expect("the ahok binary runs");
+  assert!(output.status.success(), "both repos link");
+  assert!(points_to(
+    &out.join("nested").join("a.txt"),
+    &first.join("a.txt")
+  ));
+  assert!(points_to(&out.join("b.txt"), &second.join("a.txt")));
 }

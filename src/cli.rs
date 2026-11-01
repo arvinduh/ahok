@@ -5,7 +5,7 @@
 
 mod git;
 mod hook;
-mod link;
+mod setup;
 #[cfg(feature = "update")]
 mod update;
 
@@ -24,8 +24,8 @@ pub enum Args {
   Git(git::Args),
   /// Answer one harness hook call: hook JSON on stdin, reply on stdout.
   Hook(hook::Args),
-  /// Symlink a config repo's files into place, from its `links.toml`.
-  Link(link::Args),
+  /// Apply each workspace's `ahok.toml` to this machine.
+  Setup(setup::Args),
   #[cfg(feature = "update")]
   /// Update the ahok binary to the latest release.
   Update(update::Args),
@@ -65,7 +65,7 @@ impl Args {
     match self {
       Self::Git(args) => Ok(args.run()),
       Self::Hook(args) => Ok(args.run()),
-      Self::Link(args) => args.run(),
+      Self::Setup(args) => args.run(),
       #[cfg(feature = "update")]
       Self::Update(args) => args.run().map_err(Error::Update),
     }
