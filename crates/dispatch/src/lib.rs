@@ -26,8 +26,8 @@ pub struct Failure {
 
 /// Formats `paths` with `fml fmt`.
 ///
-/// Returns `None` on success, and also when `fml` is not installed, which
-/// `ahok doctor` reports instead of every edit.
+/// Returns `None` on success, and also when `fml` is not installed, so a
+/// missing tool doesn't interrupt every edit.
 ///
 /// # Side Effects
 ///
