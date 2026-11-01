@@ -34,7 +34,6 @@ axoupdater = { version = "0.10.2", default-features = false, features = [
   "github_releases",
 ] }
 dispatch = { path = "crates/dispatch", package = "ahok-dispatch" }
-doctor = { path = "crates/doctor", package = "ahok-doctor" }
 event = { path = "crates/event", package = "ahok-event" }
 harness = { path = "crates/harness", package = "ahok-harness" }
 link = { path = "crates/link", package = "ahok-link" }
@@ -81,7 +80,6 @@ update = ["dep:axoupdater", "dep:semver", "dep:tempfile", "dep:tokio"]
 axoupdater = { workspace = true, optional = true }
 clap.workspace = true
 dispatch.workspace = true
-doctor.workspace = true
 event.workspace = true
 harness.workspace = true
 link.workspace = true

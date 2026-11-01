@@ -3,7 +3,6 @@
 //! This module maps each subcommand to its file in `cli/`. Each command owns
 //! its own output; `main` maps the outcome onto an exit code.
 
-mod doctor;
 mod git;
 mod hook;
 mod link;
@@ -26,8 +25,6 @@ pub enum Args {
   Git(git::Args),
   /// Answer one harness hook call: hook JSON on stdin, reply on stdout.
   Hook(hook::Args),
-  /// Check that rules load, tools are installed, and harnesses call ahok.
-  Doctor,
   /// Symlink a config repo's files into place, from its `links.toml`.
   Link(link::Args),
   /// Print hook latency percentiles and rule hit counts.
@@ -41,7 +38,7 @@ pub enum Args {
 pub enum Status {
   /// Nothing to report: exit 0.
   Clean,
-  /// The command found a problem, such as a failed doctor check: exit 1.
+  /// The command found a problem, such as a broken git rule: exit 1.
   Failed,
 }
 
@@ -72,7 +69,6 @@ impl Args {
   /// Runs the chosen subcommand.
   pub fn run(self) -> Result<Status, Error> {
     match self {
-      Self::Doctor => Ok(doctor::run()),
       Self::Git(args) => Ok(args.run()),
       Self::Hook(args) => Ok(args.run()),
       Self::Link(args) => args.run(),

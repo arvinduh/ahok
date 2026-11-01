@@ -95,7 +95,6 @@ Two rule kinds behave differently, because Codex can't do what they need:
 | ------------------------------ | ------------------------------------------------------ |
 | `ahok hook <harness> <event>`  | Answers one hook call (`claude`, `codex`, `agy`).      |
 | `ahok git <hook> [args]`       | Runs the `GitHook` rules from `commit-msg`/`pre-push`. |
-| `ahok doctor`                  | Checks the rules, `fml`/`git`/`mise`, and hook setup.  |
 | `ahok link [repo] [--dry-run]` | Symlinks a repo's configs from its `links.toml`.       |
 | `ahok update [--check]`        | Updates `ahok` in place to the latest release.         |
 | `ahok stats`                   | Shows p50/p99 hook latency and rule hit counts.        |
