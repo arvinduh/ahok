@@ -98,6 +98,8 @@ pub enum Outcome {
   Linked,
   /// Written now.
   Written,
+  /// A workspace cloned or fast-forwarded now.
+  Synced,
   /// Dry run: what would happen (`create`, `backup` or `relink`).
   Would(&'static str),
   /// The source is not in the repo.

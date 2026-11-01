@@ -57,6 +57,12 @@ pub enum Error {
     /// The workspace that claimed it again.
     second: path::PathBuf,
   },
+  /// A workspace URL has no name to clone it under.
+  #[error("{url}: no repository name to clone it as ~/.<name>")]
+  NoCheckout {
+    /// The URL as given.
+    url: String,
+  },
   /// A state file exists but could not be read.
   #[error("{}: {source}", path.display())]
   Read {
