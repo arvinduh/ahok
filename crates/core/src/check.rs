@@ -35,6 +35,13 @@ pub struct Check {
   changed: Option<globset::GlobSet>,
 }
 
+impl Check {
+  /// Whether the check runs on `on`.
+  pub(crate) fn runs_on(&self, on: On) -> bool {
+    self.on.contains(&on)
+  }
+}
+
 /// An event a check runs on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -72,7 +79,7 @@ pub fn run(
 ) -> Vec<Failure> {
   checks
     .iter()
-    .filter(|check| check.on.contains(&on))
+    .filter(|check| check.runs_on(on))
     .filter_map(|check| {
       let files: Vec<&path::PathBuf> = files
         .iter()

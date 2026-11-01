@@ -46,6 +46,21 @@ pub enum Error {
   /// `ahok.toml` could not be read or parsed.
   #[error(transparent)]
   Manifest(#[from] ahok_core::manifest::Error),
+  /// A file `[agents]` names could not be read or parsed.
+  #[error(transparent)]
+  Agents(#[from] ahok_core::agents::Error),
+  /// Two workspaces both have `[agents]`; each harness can follow one.
+  #[error(
+    "both {} and {} have [agents]; keep it in one",
+    first.display(),
+    second.display()
+  )]
+  TwoAgents {
+    /// The workspace that claimed `[agents]` first.
+    first: path::PathBuf,
+    /// The workspace that claimed it again.
+    second: path::PathBuf,
+  },
   /// A state file exists but could not be read.
   #[error("{}: {source}", path.display())]
   Read {

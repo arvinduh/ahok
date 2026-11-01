@@ -1,7 +1,8 @@
 //! `ahok setup [repo...]`: apply each workspace's `ahok.toml` to this machine.
 //!
-//! This module loads each manifest, links what it names, and prints one row
-//! per link. Reading the manifest and linking belong to `ahok_core`.
+//! This module loads each manifest, links what it names, writes the
+//! harness configs `[agents]` implies, and prints one row per target.
+//! Reading the manifest, linking and writing belong to `ahok_core`.
 
 use std::path;
 
@@ -29,11 +30,12 @@ pub struct Args {
 impl Args {
   /// Applies every manifest and prints the report.
   ///
-  /// `Failed` when a link did not resolve, or under `--check` when anything
-  /// is out of date.
+  /// `Failed` when a target could not be placed, or under `--check` when
+  /// anything is out of date.
   pub fn run(self) -> Result<cli::Status, cli::Error> {
     let platform = self.platform.unwrap_or_else(link::Platform::current);
     let mut rows = Vec::new();
+    let mut agents_in: Option<path::PathBuf> = None;
     for repo in &self.repos {
       let repo = path::absolute(repo).map_err(|source| cli::Error::Read {
         path: repo.clone(),
@@ -41,10 +43,20 @@ impl Args {
       })?;
       let manifest = manifest::load(&repo)?;
       let mut links = manifest.link;
+      let mut configs = Vec::new();
       if let Some(agents) = &manifest.agents {
+        if let Some(first) = agents_in {
+          return Err(cli::Error::TwoAgents {
+            first,
+            second: repo,
+          });
+        }
         links.extend(agents.links());
+        configs = agents.configs(&repo, &manifest.check)?;
+        agents_in = Some(repo.clone());
       }
       rows.extend(link::apply(&repo, &links, platform, self.check));
+      rows.extend(link::write(&configs, self.check));
     }
     let labels: Vec<String> =
       rows.iter().map(|row| label(&row.outcome)).collect();
@@ -59,11 +71,11 @@ impl Args {
       .filter(|row| matches!(row.outcome, link::Outcome::Would(_)))
       .count();
     if failed > 0 {
-      eprintln!("\n{failed} link(s) did not resolve.");
+      eprintln!("\n{failed} target(s) could not be placed.");
       return Ok(cli::Status::Failed);
     }
     if stale > 0 {
-      eprintln!("\n{stale} link(s) out of date; run `ahok setup`.");
+      eprintln!("\n{stale} target(s) out of date; run `ahok setup`.");
       return Ok(cli::Status::Failed);
     }
     Ok(cli::Status::Clean)
