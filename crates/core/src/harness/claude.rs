@@ -8,7 +8,7 @@ use std::path;
 use serde;
 use serde_json;
 
-use crate::dispatch;
+use crate::check;
 use crate::event;
 use crate::rules;
 
@@ -105,13 +105,13 @@ pub(crate) fn permission(decision: &str, rule: &str, reason: &str) -> String {
 }
 
 /// Renders the stdout reply to a `PostToolUse` or `Stop` call whose
-/// built-in checks produced `failures`.
+/// checks produced `failures`.
 ///
 /// `decision: block` shows the reason to the agent: after an edit it is
 /// feedback, and at `Stop` it keeps the agent working. Codex reads the same
 /// shape. No failures renders `{}`.
 #[must_use]
-pub fn feedback(failures: &[dispatch::Failure]) -> String {
+pub fn feedback(failures: &[check::Failure]) -> String {
   if failures.is_empty() {
     return "{}".to_owned();
   }
@@ -211,7 +211,7 @@ mod tests {
 
   #[test]
   fn failures_render_as_block_with_output() {
-    let failures = [dispatch::Failure {
+    let failures = [check::Failure {
       command: "fml lint --changed".to_owned(),
       output: "a.rs:1: bad".to_owned(),
     }];

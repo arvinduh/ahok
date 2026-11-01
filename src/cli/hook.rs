@@ -1,4 +1,4 @@
-//! `ahok hook <harness> <event>`: answer one harness hook call.
+//! `ahok hook -C <workspace> <harness> <event>`: answer one hook call.
 //!
 //! This module owns the hook process contract: read the payload from stdin,
 //! always write a JSON reply to stdout, and end `Clean` so the process exits
@@ -10,9 +10,10 @@ use std::io;
 use std::path;
 use std::time;
 
-use ahok_core::dispatch;
+use ahok_core::check;
 use ahok_core::event;
 use ahok_core::harness;
+use ahok_core::manifest;
 use ahok_core::rules;
 use ahok_core::state::dirs;
 use ahok_core::state::journal;
@@ -25,8 +26,11 @@ use crate::cli;
 /// Arguments of `ahok hook`.
 #[derive(clap::Args)]
 pub struct Args {
-  /// Harness that fired the hook: claude, codex, antigravity or agy.
-  harness: String,
+  /// Workspace whose `ahok.toml` holds the rules and checks.
+  #[arg(short = 'C', long)]
+  workspace: path::PathBuf,
+  /// Harness that fired the hook: claude, codex or agy.
+  harness: harness::Harness,
   /// Hook event name, such as `PreToolUse`.
   event: String,
 }
@@ -40,18 +44,15 @@ enum Error {
   /// The payload is not a valid hook call.
   #[error(transparent)]
   Harness(#[from] harness::Error),
+  /// The workspace's `ahok.toml` failed to load.
+  #[error(transparent)]
+  Manifest(#[from] manifest::Error),
   /// The rules directory failed to load.
   #[error(transparent)]
   Rules(#[from] rules::Error),
-  /// The harness argument names no adapter.
-  #[error("unsupported harness `{0}`")]
-  UnknownHarness(String),
   /// The session file could not be read.
   #[error("session state: {0}")]
   Session(io::Error),
-  /// No config directory could be located.
-  #[error("no config directory: set AHOK_CONFIG_DIR or HOME")]
-  NoConfig,
 }
 
 impl Args {
@@ -65,11 +66,12 @@ impl Args {
       Ok(reply) => reply,
       Err(err) => {
         if let Some(dir) = &state {
-          let message = format!("hook {} {}: {err}", self.harness, self.event);
+          let message =
+            format!("hook {} {}: {err}", self.harness.name(), self.event);
           drop(journal::error(dir, unix_ms, &message));
         }
-        match self.harness.as_str() {
-          "antigravity" | "agy" if self.event == "PreToolUse" => {
+        match self.harness {
+          harness::Harness::Agy if self.event == "PreToolUse" => {
             r#"{"decision":"allow"}"#.to_owned()
           }
           _ => "{}".to_owned(),
@@ -83,8 +85,10 @@ impl Args {
   /// Parses the payload, runs what the event calls for, and returns the
   /// reply.
   ///
-  /// `PreToolUse` evaluates the rules; `PostToolUse` on an edit formats the
-  /// files; `Stop` runs the gate unless a Stop hook already blocked once.
+  /// `PreToolUse` evaluates the rules; `PostToolUse` on an edit runs the
+  /// edit checks on the edited files; `Stop` runs the stop checks on every
+  /// file changed since the branch's base, unless a Stop hook already
+  /// blocked once.
   fn decide(
     &self,
     unix_ms: u64,
@@ -92,51 +96,55 @@ impl Args {
   ) -> Result<String, Error> {
     let mut input = String::new();
     io::Read::read_to_string(&mut io::stdin(), &mut input)?;
-    let reply = match self.harness.as_str() {
-      // Codex shares Claude Code's reply shape for everything but rules.
-      "claude" | "codex" => {
-        let (parse, respond): (Parse, Respond) = match self.harness.as_str() {
-          "claude" => (harness::claude::parse, harness::claude::respond),
-          _ => (harness::codex::parse, harness::codex::respond),
+    // Codex shares Claude Code's reply shape for everything but rules.
+    let (parse, respond, feedback): (Parse, Respond, Feedback) =
+      match self.harness {
+        harness::Harness::Claude => (
+          harness::claude::parse,
+          harness::claude::respond,
+          harness::claude::feedback,
+        ),
+        harness::Harness::Codex => (
+          harness::codex::parse,
+          harness::codex::respond,
+          harness::claude::feedback,
+        ),
+        harness::Harness::Agy => (
+          harness::antigravity::parse,
+          harness::antigravity::respond,
+          harness::antigravity::feedback,
+        ),
+      };
+    let event = parse(&self.event, &input)?;
+    let manifest = manifest::load(&self.workspace)?;
+    Ok(match &event.kind {
+      event::Kind::PreToolUse(tool) => {
+        let dir = manifest.agents.and_then(|a| a.rules(&self.workspace));
+        let rules = match dir {
+          Some(dir) => rules::load(&dir)?,
+          None => Vec::new(),
         };
-        let event = parse(&self.event, &input)?;
-        match &event.kind {
-          event::Kind::PreToolUse(tool) => {
-            pre_tool_use(&event, tool, state, unix_ms, respond)?
-          }
-          event::Kind::PostToolUse(event::Tool::Edit { paths }) => {
-            let failure = dispatch::format(&event.cwd, paths);
-            harness::claude::feedback(failure.as_slice())
-          }
-          event::Kind::Stop {
-            already_blocked: false,
-          } => harness::claude::feedback(&dispatch::gate(&event.cwd)),
-          _ => "{}".to_owned(),
+        pre_tool_use(&event, tool, &rules, state, unix_ms, respond)?
+      }
+      event::Kind::PostToolUse(event::Tool::Edit { paths }) => {
+        let on = check::On::Edit;
+        let failures = check::run(&manifest.check, on, &event.cwd, paths);
+        // Antigravity can't feed a failed edit check back to the agent.
+        match self.harness {
+          harness::Harness::Agy => "{}".to_owned(),
+          _ => feedback(&failures),
         }
       }
-      "antigravity" | "agy" => {
-        let event = harness::antigravity::parse(&self.event, &input)?;
-        match &event.kind {
-          event::Kind::PreToolUse(tool) => pre_tool_use(
-            &event,
-            tool,
-            state,
-            unix_ms,
-            harness::antigravity::respond,
-          )?,
-          event::Kind::PostToolUse(event::Tool::Edit { paths }) => {
-            drop(dispatch::format(&event.cwd, paths));
-            "{}".to_owned()
-          }
-          event::Kind::Stop {
-            already_blocked: false,
-          } => harness::antigravity::feedback(&dispatch::gate(&event.cwd)),
-          _ => "{}".to_owned(),
+      event::Kind::Stop {
+        already_blocked: false,
+      } => match check::changed_since_base(&event.cwd) {
+        Some((root, files)) => {
+          feedback(&check::run(&manifest.check, check::On::Stop, &root, &files))
         }
-      }
-      _ => return Err(Error::UnknownHarness(self.harness.clone())),
-    };
-    Ok(reply)
+        None => "{}".to_owned(),
+      },
+      _ => "{}".to_owned(),
+    })
   }
 }
 
@@ -145,6 +153,9 @@ type Parse = fn(&str, &str) -> Result<event::Event, harness::Error>;
 
 /// An adapter's `PreToolUse` reply renderer.
 type Respond = fn(Option<&rules::Match>) -> String;
+
+/// An adapter's renderer for failed checks.
+type Feedback = fn(&[check::Failure]) -> String;
 
 /// Evaluates the rules for a `PreToolUse` call and updates the session.
 ///
@@ -155,12 +166,11 @@ type Respond = fn(Option<&rules::Match>) -> String;
 fn pre_tool_use(
   event: &event::Event,
   tool: &event::Tool,
+  rules: &[rules::Rule],
   state: Option<&path::Path>,
   unix_ms: u64,
   respond: impl FnOnce(Option<&rules::Match>) -> String,
 ) -> Result<String, Error> {
-  let config = dirs::config().ok_or(Error::NoConfig)?;
-  let rules = rules::load(&config.join("rules"))?;
   let id = &event.session_id;
   let mut session = match state {
     Some(dir) => session::State::load(dir, id).map_err(Error::Session)?,
@@ -172,7 +182,7 @@ fn pre_tool_use(
     var_set: &var_set,
     session: &session,
   };
-  let found = rules::evaluate(&rules, event, &env);
+  let found = rules::evaluate(rules, event, &env);
   let reply = respond(found.as_ref());
   let fired = found
     .as_ref()

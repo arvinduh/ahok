@@ -12,6 +12,7 @@ use serde;
 use thiserror;
 use toml;
 
+use crate::agents;
 use crate::check;
 use crate::link;
 
@@ -43,6 +44,8 @@ pub enum Error {
 #[derive(Debug, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
+  /// The `[agents]` table; absent in a workspace that wires up no harness.
+  pub agents: Option<agents::Agents>,
   /// Every `[[link]]` table, in file order.
   #[serde(default)]
   pub link: Vec<link::Link>,
