@@ -39,10 +39,7 @@ fn kind(
   Ok(match name {
     "PreToolUse" => event::Kind::PreToolUse(tool()),
     "PostToolUse" => event::Kind::PostToolUse(tool()),
-    "PostToolUseFailure" => event::Kind::PostToolUseFailure(tool()),
-    "SessionStart" => event::Kind::SessionStart,
     "Stop" => event::Kind::Stop { already_blocked },
-    "PreInvocation" => event::Kind::PreInvocation,
     _ => {
       return Err(Error::UnknownEvent {
         name: name.to_owned(),

@@ -29,18 +29,12 @@ pub enum Kind {
   PreToolUse(Tool),
   /// After a tool succeeded.
   PostToolUse(Tool),
-  /// After a tool failed.
-  PostToolUseFailure(Tool),
-  /// A session started or resumed.
-  SessionStart,
   /// The agent finished its turn.
   Stop {
     /// The agent is already continuing because a Stop hook blocked it;
     /// blocking again could loop forever.
     already_blocked: bool,
   },
-  /// Before a model call (Antigravity only).
-  PreInvocation,
 }
 
 /// The tool call a tool event is about.
