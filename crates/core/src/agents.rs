@@ -69,12 +69,14 @@ impl Agents {
   pub fn links(&self) -> Vec<link::Link> {
     let mut links = Vec::new();
     for harness in &self.harnesses {
-      if let Some(from) = &self.instructions {
-        links.push(link::Link::new(from.clone(), harness.instructions()));
+      if let (Some(from), Some(to)) =
+        (&self.instructions, harness.instructions())
+      {
+        links.push(link::Link::new(from.clone(), to));
       }
-      if let Some(dir) = &self.skills {
+      if let (Some(dir), Some(to)) = (&self.skills, harness.skills()) {
         let from = format!("{}/*", dir.trim_end_matches('/'));
-        links.push(link::Link::new(from, harness.skills()));
+        links.push(link::Link::new(from, to));
       }
     }
     links
@@ -113,7 +115,7 @@ impl Agents {
         harness::Harness::Codex => {
           (codex::HOOKS, serde_json::Map::new(), codex::hooks(&wiring))
         }
-        harness::Harness::Agy => continue,
+        harness::Harness::Agy | harness::Harness::Git => continue,
       };
       keys.insert("hooks".to_owned(), hooks);
       configs.push(link::Json {

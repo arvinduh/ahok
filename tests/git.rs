@@ -1,5 +1,5 @@
-//! Process-level contract of `ahok git`: exit 1 with a reason on stderr
-//! when a rule is broken, exit 0 otherwise.
+//! Process-level contract of `ahok hook git`: exit 1 with a reason on
+//! stderr when a rule is broken, exit 0 otherwise.
 
 use std::env;
 use std::fs;
@@ -7,7 +7,7 @@ use std::io;
 use std::path;
 use std::process;
 
-/// Runs `ahok git <args>` with fixture rules and `stdin` in an empty git
+/// Runs `ahok hook git <args>` with fixture rules and `stdin` in an empty git
 /// repo named after `name`, so this checkout's staged changes can't trip the diff budget;
 /// returns whether it passed and its stderr.
 fn git_hook(name: &str, args: &[&str], stdin: &str) -> (bool, String) {
@@ -22,10 +22,11 @@ fn git_hook(name: &str, args: &[&str], stdin: &str) -> (bool, String) {
     .expect("git runs");
   assert!(init.success(), "git init must succeed");
   let mut child = process::Command::new(env!("CARGO_BIN_EXE_ahok"))
+    .args(["hook", "-C"])
+    .arg(root.join("crates/core/tests/fixtures"))
     .arg("git")
     .args(args)
     .current_dir(&repo)
-    .env("AHOK_CONFIG_DIR", root.join("crates/core/tests/fixtures"))
     .stdin(process::Stdio::piped())
     .stderr(process::Stdio::piped())
     .spawn()
