@@ -201,3 +201,54 @@ skills = "skills"
   assert!(points_to(&out.join(".codex/skills/two"), &skill));
   assert!(!out.join(".gemini").exists(), "agy is not listed");
 }
+
+#[test]
+fn writes_hook_configs_and_keeps_other_keys() {
+  let agents = r#"
+[agents]
+harnesses = ["claude", "codex", "agy"]
+rules = "rules"
+claude_settings = "settings.json"
+
+[[check]]
+on = ["stop"]
+run = "cargo check"
+"#;
+  let (repo, out) = setup("hooks", agents);
+  fs::write(repo.join("settings.json"), r#"{"tui":"full"}"#).expect("seed");
+  fs::create_dir_all(out.join(".claude")).expect("temp dir");
+  let settings = out.join(".claude").join("settings.json");
+  fs::write(&settings, r#"{"model":"opus"}"#).expect("seed");
+  let (ok, stdout) = link(&repo, &out, &[]);
+  assert!(ok, "{stdout}");
+  let read = |path: &path::Path| -> serde_json::Value {
+    let text = fs::read_to_string(path).expect("written");
+    serde_json::from_str(&text).expect("JSON")
+  };
+  let claude = read(&settings);
+  assert_eq!(claude["model"], "opus", "keeps the user's keys");
+  assert_eq!(claude["tui"], "full", "sets claude_settings keys");
+  let hooks = claude["hooks"].as_object().expect("hooks");
+  let events: Vec<&str> = hooks.keys().map(String::as_str).collect();
+  assert_eq!(events, ["PreToolUse", "Stop"], "no edit checks");
+  let codex = read(&out.join(".codex").join("hooks.json"));
+  assert!(codex["hooks"]["Stop"].is_array(), "{codex}");
+  let (ok, stdout) = link(&repo, &out, &["--check"]);
+  assert!(ok, "rerun is clean: {stdout}");
+}
+
+#[test]
+fn refuses_two_workspaces_with_agents() {
+  let (one, out) = setup("agents-one", "[agents]\n");
+  let (two, _) = setup("agents-two", "[agents]\n");
+  let output = process::Command::new(env!("CARGO_BIN_EXE_ahok"))
+    .args(["setup", "--check"])
+    .args([&one, &two])
+    .env("HOME", &out)
+    .env("USERPROFILE", &out)
+    .output()
+    .expect("the ahok binary runs");
+  assert!(!output.status.success(), "two [agents] must fail");
+  let stderr = String::from_utf8_lossy(&output.stderr);
+  assert!(stderr.contains("keep it in one"), "{stderr}");
+}
