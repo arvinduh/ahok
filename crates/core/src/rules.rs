@@ -14,6 +14,7 @@ use serde;
 use thiserror;
 use toml;
 
+use crate::de;
 use crate::event;
 
 mod eval;
@@ -58,10 +59,10 @@ pub struct Rule {
   #[serde(default)]
   match_commands: Vec<String>,
   /// Regex matched against the whole shell command line.
-  #[serde(default, deserialize_with = "compile_regex")]
+  #[serde(default, deserialize_with = "de::pattern")]
   match_pattern: Option<regex::Regex>,
   /// Globs matched against the paths an edit writes.
-  #[serde(default, deserialize_with = "compile_globs")]
+  #[serde(default, deserialize_with = "de::globs")]
   match_files: Option<globset::GlobSet>,
   /// What to do with a matching call.
   decision: Option<event::Decision>,
@@ -77,14 +78,14 @@ pub struct Rule {
   /// The git hook a `GitHook` rule runs in.
   hook: Option<GitHook>,
   /// Regex the commit subject must match.
-  #[serde(default, deserialize_with = "compile_regex")]
+  #[serde(default, deserialize_with = "de::pattern")]
   pattern: Option<regex::Regex>,
   /// Commit-message tag that exempts the commit.
   allow_tag: Option<String>,
   /// Most net lines a staged diff may change.
   max_net_lines: Option<u32>,
   /// Paths left out of the diff count.
-  #[serde(default, deserialize_with = "compile_globs")]
+  #[serde(default, deserialize_with = "de::globs")]
   exclude_globs: Option<globset::GlobSet>,
   /// Environment variable that exempts the commit.
   allow_env: Option<String>,
@@ -125,28 +126,6 @@ enum GitHook {
   CommitMsg,
   /// Checks the refs being pushed.
   PrePush,
-}
-
-/// Compiles a regex field, so a bad pattern fails loading with its file.
-fn compile_regex<'de, D: serde::Deserializer<'de>>(
-  deserializer: D,
-) -> Result<Option<regex::Regex>, D::Error> {
-  let pattern = <String as serde::Deserialize>::deserialize(deserializer)?;
-  regex::Regex::new(&pattern)
-    .map(Some)
-    .map_err(<D::Error as serde::de::Error>::custom)
-}
-
-/// Compiles a glob list into one matcher, failing loading on a bad glob.
-fn compile_globs<'de, D: serde::Deserializer<'de>>(
-  deserializer: D,
-) -> Result<Option<globset::GlobSet>, D::Error> {
-  let globs = <Vec<String> as serde::Deserialize>::deserialize(deserializer)?;
-  let mut set = globset::GlobSetBuilder::new();
-  for glob in &globs {
-    set.add(globset::Glob::new(glob).map_err(serde::de::Error::custom)?);
-  }
-  set.build().map(Some).map_err(serde::de::Error::custom)
 }
 
 /// The top level of a rules file.

@@ -6,6 +6,7 @@
 
 #![deny(clippy::print_stdout, clippy::print_stderr)]
 
+mod de;
 pub mod dispatch;
 pub mod event;
 pub mod harness;
