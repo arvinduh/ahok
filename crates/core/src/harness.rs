@@ -8,6 +8,8 @@ pub mod antigravity;
 pub mod claude;
 pub mod codex;
 
+use std::path;
+
 use serde;
 use serde_json;
 use thiserror;
@@ -49,6 +51,31 @@ impl std::str::FromStr for Harness {
       .into_iter()
       .find(|harness| harness.name() == name)
       .ok_or_else(|| format!("expected claude, codex or agy, got {name}"))
+  }
+}
+
+/// The hook events a workspace needs answered, and where it lives.
+pub struct Wiring<'a> {
+  /// The workspace, baked into each hook command as `-C`.
+  pub workspace: &'a path::Path,
+  /// Register `PreToolUse`: the workspace has rules.
+  pub rules: bool,
+  /// Register `PostToolUse` on edits: the workspace has edit checks.
+  pub edit: bool,
+  /// Register `Stop`: the workspace has stop checks.
+  pub stop: bool,
+}
+
+impl Wiring<'_> {
+  /// The shell command a harness runs for `event`: `ahok hook`, or `{}`
+  /// (allow) when ahok is not installed.
+  pub(crate) fn command(&self, harness: Harness, event: &str) -> String {
+    let workspace = self.workspace.display().to_string().replace('\'', r"'\''");
+    format!(
+      "command -v ahok >/dev/null 2>&1 && ahok hook -C '{workspace}' {} \
+       {event} || echo '{{}}'",
+      harness.name()
+    )
   }
 }
 

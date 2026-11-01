@@ -1,7 +1,7 @@
 //! Codex hook adapter.
 //!
-//! Owns Codex's tool names and the parts of its reply that differ from
-//! Claude Code. Codex copies Claude Code's payload and reply shapes, so the
+//! Owns Codex's tool names, where it reads its files, and the parts of its
+//! reply that differ from Claude Code. Codex copies Claude Code's payload and reply shapes, so the
 //! shared renderers stay in `claude`; event-name lookup is in `harness`.
 
 use std::path;
@@ -10,8 +10,24 @@ use serde;
 use serde_json;
 
 use crate::event;
+use crate::harness;
 use crate::harness::claude;
 use crate::rules;
+
+/// Where Codex reads the user's instructions.
+pub const INSTRUCTIONS: &str = "~/.codex/AGENTS.md";
+
+/// The directory Codex reads the user's skills from, one per child.
+pub const SKILLS: &str = "~/.codex/skills";
+
+/// Codex's hooks file.
+pub const HOOKS: &str = "~/.codex/hooks.json";
+
+/// The tool that runs shell commands.
+const SHELL: &str = "Bash";
+
+/// The tool that writes files, as a patch.
+const PATCH: &str = "apply_patch";
 
 /// The fields of a Codex hook payload that rules read.
 #[derive(serde::Deserialize)]
@@ -43,14 +59,14 @@ struct ToolInput {
 ///
 /// # Errors
 ///
-/// `crate::harness::Error::Json` for a malformed payload, and
-/// `crate::harness::Error::UnknownEvent` for an unsupported `event_name`.
+/// `harness::Error::Json` for a malformed payload, and
+/// `harness::Error::UnknownEvent` for an unsupported `event_name`.
 pub fn parse(
   event_name: &str,
   json: &str,
-) -> Result<event::Event, crate::harness::Error> {
+) -> Result<event::Event, harness::Error> {
   let payload: Payload = serde_json::from_str(json)?;
-  let kind = crate::harness::kind(
+  let kind = harness::kind(
     event_name,
     || tool(payload.tool_name, payload.tool_input.command),
     payload.stop_hook_active,
@@ -97,11 +113,18 @@ pub fn respond(found: Option<&rules::Match>) -> String {
   }
 }
 
+/// Renders the hooks file that wires Codex to ahok.
+#[must_use]
+pub fn hooks(wiring: &harness::Wiring) -> serde_json::Value {
+  let pre = format!("{SHELL}|{PATCH}");
+  claude::render(harness::Harness::Codex, &pre, PATCH, wiring)
+}
+
 /// Maps a Codex tool call onto the harness-neutral tool.
 fn tool(name: String, command: Option<String>) -> event::Tool {
   match (name.as_str(), command) {
-    ("Bash", Some(command)) => event::Tool::Shell { command },
-    ("apply_patch", Some(patch)) => event::Tool::Edit {
+    (SHELL, Some(command)) => event::Tool::Shell { command },
+    (PATCH, Some(patch)) => event::Tool::Edit {
       paths: patch_paths(&patch),
     },
     _ => event::Tool::Other { name },

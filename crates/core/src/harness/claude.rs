@@ -1,7 +1,8 @@
 //! Claude Code hook adapter.
 //!
-//! Owns Claude Code's hook payload shape and its tool names. Event-name
-//! lookup is shared in `harness`; rules are evaluated elsewhere.
+//! Owns Claude Code's hook payload and settings shapes, its tool names, and
+//! where it reads its files. Event-name lookup is shared in `harness`; rules
+//! are evaluated elsewhere.
 
 use std::path;
 
@@ -10,7 +11,30 @@ use serde_json;
 
 use crate::check;
 use crate::event;
+use crate::harness;
 use crate::rules;
+
+/// Where Claude Code reads the user's instructions.
+pub const INSTRUCTIONS: &str = "~/.claude/CLAUDE.md";
+
+/// The directory Claude Code reads the user's skills from, one per child.
+pub const SKILLS: &str = "~/.claude/skills";
+
+/// Claude Code's user settings, which hold its hooks.
+pub const SETTINGS: &str = "~/.claude/settings.json";
+
+/// The tool that runs shell commands.
+const SHELL: &str = "Bash";
+
+/// The tools that write files.
+const EDITS: [&str; 3] = ["Edit", "Write", "MultiEdit"];
+
+/// The tool that loads a skill.
+const SKILL: &str = "Skill";
+
+/// Hook timeouts in seconds, per event: rules are fast, checks are not.
+const TIMEOUTS: [(&str, u32); 3] =
+  [("PreToolUse", 5), ("PostToolUse", 60), ("Stop", 300)];
 
 /// The fields of a Claude Code hook payload that rules read.
 #[derive(serde::Deserialize)]
@@ -46,14 +70,14 @@ struct ToolInput {
 ///
 /// # Errors
 ///
-/// `crate::harness::Error::Json` for a malformed payload, and
-/// `crate::harness::Error::UnknownEvent` for an unsupported `event_name`.
+/// `harness::Error::Json` for a malformed payload, and
+/// `harness::Error::UnknownEvent` for an unsupported `event_name`.
 pub fn parse(
   event_name: &str,
   json: &str,
-) -> Result<event::Event, crate::harness::Error> {
+) -> Result<event::Event, harness::Error> {
   let payload: Payload = serde_json::from_str(json)?;
-  let kind = crate::harness::kind(
+  let kind = harness::kind(
     event_name,
     || tool(payload.tool_name, payload.tool_input),
     payload.stop_hook_active,
@@ -125,14 +149,58 @@ pub fn feedback(failures: &[check::Failure]) -> String {
   serde_json::json!({ "decision": "block", "reason": reason }).to_string()
 }
 
+/// Renders the `hooks` setting that wires Claude Code to ahok.
+#[must_use]
+pub fn hooks(wiring: &harness::Wiring) -> serde_json::Value {
+  let edits = EDITS.join("|");
+  let pre = format!("{SHELL}|{edits}|{SKILL}");
+  render(harness::Harness::Claude, &pre, &edits, wiring)
+}
+
+/// Renders a `hooks` table in the shape Claude Code and Codex share.
+///
+/// `pre` and `post` are the tool matchers for `PreToolUse` and
+/// `PostToolUse`; an event the workspace doesn't need is left out.
+pub(crate) fn render(
+  harness: harness::Harness,
+  pre: &str,
+  post: &str,
+  wiring: &harness::Wiring,
+) -> serde_json::Value {
+  let wanted = [
+    (wiring.rules, Some(pre)),
+    (wiring.edit, Some(post)),
+    (wiring.stop, None),
+  ];
+  let mut hooks = serde_json::Map::new();
+  for ((event, timeout), (wanted, matcher)) in TIMEOUTS.into_iter().zip(wanted)
+  {
+    if !wanted {
+      continue;
+    }
+    let mut entry = serde_json::json!({
+      "hooks": [{
+        "type": "command",
+        "command": wiring.command(harness, event),
+        "timeout": timeout,
+      }],
+    });
+    if let Some(matcher) = matcher {
+      entry["matcher"] = matcher.into();
+    }
+    hooks.insert(event.to_owned(), serde_json::json!([entry]));
+  }
+  serde_json::Value::Object(hooks)
+}
+
 /// Maps a Claude Code tool call onto the harness-neutral tool.
 fn tool(name: String, input: ToolInput) -> event::Tool {
   match (name.as_str(), input.command, input.file_path, input.skill) {
-    ("Bash", Some(command), _, _) => event::Tool::Shell { command },
-    ("Edit" | "Write" | "MultiEdit", _, Some(path), _) => {
+    (SHELL, Some(command), _, _) => event::Tool::Shell { command },
+    (edit, _, Some(path), _) if EDITS.contains(&edit) => {
       event::Tool::Edit { paths: vec![path] }
     }
-    ("Skill", _, _, Some(name)) => event::Tool::Skill { name },
+    (SKILL, _, _, Some(name)) => event::Tool::Skill { name },
     _ => event::Tool::Other { name },
   }
 }
@@ -140,6 +208,45 @@ fn tool(name: String, input: ToolInput) -> event::Tool {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn hooks_register_only_the_events_the_workspace_needs() {
+    let workspace = path::Path::new("/home/me/agents");
+    let all = harness::Wiring {
+      workspace,
+      rules: true,
+      edit: true,
+      stop: true,
+    };
+    let hooks = hooks(&all);
+    assert_eq!(
+      hooks["PreToolUse"][0]["matcher"],
+      "Bash|Edit|Write|MultiEdit|Skill"
+    );
+    assert_eq!(hooks["PostToolUse"][0]["matcher"], "Edit|Write|MultiEdit");
+    assert_eq!(hooks["Stop"][0]["hooks"][0]["timeout"], 300);
+    assert_eq!(
+      hooks["PreToolUse"][0]["hooks"][0]["command"],
+      "command -v ahok >/dev/null 2>&1 && ahok hook -C '/home/me/agents' \
+       claude PreToolUse || echo '{}'"
+    );
+    let stop_only = harness::Wiring {
+      rules: false,
+      edit: false,
+      ..all
+    };
+    let stop_only = super::hooks(&stop_only);
+    assert_eq!(hooks_keys(&stop_only), ["Stop"]);
+  }
+
+  fn hooks_keys(hooks: &serde_json::Value) -> Vec<&str> {
+    hooks
+      .as_object()
+      .expect("hooks is an object")
+      .keys()
+      .map(String::as_str)
+      .collect()
+  }
 
   fn pre_tool(tool: &str, input: &str) -> event::Event {
     let json = format!(
@@ -247,12 +354,12 @@ mod tests {
   #[test]
   fn unknown_event_is_an_error() {
     let err = parse("Notification", r#"{"session_id":"s1"}"#).unwrap_err();
-    assert!(matches!(err, crate::harness::Error::UnknownEvent { .. }));
+    assert!(matches!(err, harness::Error::UnknownEvent { .. }));
   }
 
   #[test]
   fn malformed_payload_is_an_error() {
     let err = parse("Stop", "{}").unwrap_err();
-    assert!(matches!(err, crate::harness::Error::Json(_)));
+    assert!(matches!(err, harness::Error::Json(_)));
   }
 }

@@ -1,6 +1,7 @@
 //! Antigravity hook adapter.
 //!
-//! Owns Antigravity's hook payload shape and its tool names. Event-name
+//! Owns Antigravity's hook payload shape, its tool names, and where it reads
+//! its files. Event-name
 //! lookup is shared in `harness`; rules are evaluated elsewhere.
 
 use std::path;
@@ -11,6 +12,12 @@ use serde_json;
 use crate::check;
 use crate::event;
 use crate::rules;
+
+/// Where Antigravity reads the user's instructions.
+pub const INSTRUCTIONS: &str = "~/.gemini/config/AGENTS.md";
+
+/// The directory Antigravity reads the user's skills from, one per child.
+pub const SKILLS: &str = "~/.gemini/config/skills";
 
 /// The fields of an Antigravity hook payload that rules read.
 #[derive(serde::Deserialize)]
