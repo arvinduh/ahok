@@ -54,9 +54,8 @@ pub fn commit_msg<'a>(
         .pattern
         .as_ref()
         .is_some_and(|pattern| !generated && !pattern.is_match(subject));
-      let over_budget = rule.max_net_lines.is_some_and(|max| match changes {
-        Some(changes) => counted_lines(rule, changes) > max,
-        None => fails_closed(rule),
+      let over_budget = rule.max_net_lines.is_some_and(|max| {
+        changes.is_some_and(|changes| counted_lines(rule, changes) > max)
       });
       bad_subject || over_budget
     })
@@ -73,12 +72,13 @@ pub fn pre_push<'a>(
   refs: Option<&[&str]>,
 ) -> Vec<Violation<'a>> {
   hook_rules(rules, crate::GitHook::PrePush)
-    .filter(|rule| match refs {
-      Some(refs) => refs.iter().any(|remote| {
-        let branch = remote.strip_prefix("refs/heads/").unwrap_or(remote);
-        rule.protected_branches.iter().any(|name| name == branch)
-      }),
-      None => fails_closed(rule),
+    .filter(|rule| {
+      refs.is_some_and(|refs| {
+        refs.iter().any(|remote| {
+          let branch = remote.strip_prefix("refs/heads/").unwrap_or(remote);
+          rule.protected_branches.iter().any(|name| name == branch)
+        })
+      })
     })
     .map(violation)
     .collect()
@@ -106,11 +106,6 @@ fn counted_lines(rule: &crate::Rule, changes: &[Change]) -> u32 {
     })
     .map(|change| change.lines)
     .sum()
-}
-
-/// Whether `rule` blocks when its input couldn't be read.
-fn fails_closed(rule: &crate::Rule) -> bool {
-  matches!(rule.fail, Some(crate::Fail::Closed))
 }
 
 /// Reports `rule` as broken.
@@ -178,11 +173,11 @@ mod tests {
   }
 
   #[test]
-  fn unreadable_diff_passes_unless_closed() {
+  fn unreadable_input_fails_open() {
     let rules = rules();
     let found = commit_msg(&rules, "fix(a): add b", None, &|_| false);
     assert!(found.is_empty(), "budget fails open");
-    assert_eq!(ids(&pre_push(&rules, None)), ["no-push-default-branch"]);
+    assert_eq!(ids(&pre_push(&rules, None)), NONE);
   }
 
   #[test]
