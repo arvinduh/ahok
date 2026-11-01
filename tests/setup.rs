@@ -304,3 +304,65 @@ fn git_hooks_run_the_workspace_rules() {
   let stderr = String::from_utf8_lossy(&good.stderr);
   assert!(good.status.success(), "{stderr}");
 }
+
+/// Runs `git args` in `dir` as a throwaway identity; panics on failure.
+fn git_in(dir: &path::Path, args: &[&str]) {
+  let ok = process::Command::new("git")
+    .args(["-c", "user.name=t", "-c", "user.email=t@t"])
+    .args(args)
+    .current_dir(dir)
+    .status()
+    .expect("git runs")
+    .success();
+  assert!(ok, "git {args:?} must succeed");
+}
+
+#[test]
+fn clones_a_url_then_pulls_it() {
+  let (source, out) = setup("url", ONE);
+  git_in(&source, &["init", "-q"]);
+  git_in(&source, &["add", "."]);
+  git_in(&source, &["commit", "-qm", "init"]);
+  // `file:///C:/...` on Windows, `file:///tmp/...` elsewhere.
+  let source = source.display().to_string().replace('\\', "/");
+  let url = format!("file:///{}", source.trim_start_matches('/'));
+  let clone = out.join(".repo");
+  let run = |check: bool| {
+    let mut command = process::Command::new(env!("CARGO_BIN_EXE_ahok"));
+    command.args(["setup", &url]).env("OUT", &out);
+    command.env("HOME", &out).env("USERPROFILE", &out);
+    if check {
+      command.arg("--check");
+    }
+    let output = command.output().expect("the ahok binary runs");
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 report");
+    (output.status.success(), stdout)
+  };
+  let (ok, stdout) = run(true);
+  assert!(!ok, "a missing clone is out of date: {stdout}");
+  assert!(!clone.exists(), "--check must not clone");
+  let (ok, stdout) = run(false);
+  assert!(ok, "{stdout}");
+  assert!(stdout.contains("cloned"), "{stdout}");
+  assert!(points_to(
+    &out.join("nested").join("a.txt"),
+    &clone.join("a.txt")
+  ));
+  let (ok, stdout) = run(false);
+  assert!(ok, "{stdout}");
+  assert!(stdout.contains("pulled"), "{stdout}");
+}
+
+#[test]
+fn a_bad_manifest_changes_nothing() {
+  let (good, out) = setup("bad-manifest", ONE);
+  let (bad, _) = setup("bad-manifest-2", "[[nope]]\n");
+  let output = process::Command::new(env!("CARGO_BIN_EXE_ahok"))
+    .arg("setup")
+    .args([&good, &bad])
+    .env("OUT", &out)
+    .output()
+    .expect("the ahok binary runs");
+  assert!(!output.status.success(), "a bad manifest must fail");
+  assert!(!out.join("nested").exists(), "nothing is linked");
+}
