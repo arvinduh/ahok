@@ -523,3 +523,83 @@ fn remove_link(link: &path::Path) -> io::Result<()> {
   }
 }
 
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn hooks_file(to: &path::Path) -> Json {
+    let mut keys = serde_json::Map::new();
+    keys.insert("hooks".to_owned(), serde_json::json!({ "Stop": [] }));
+    Json {
+      to: to.display().to_string(),
+      keys,
+    }
+  }
+
+  fn read(path: &path::Path) -> serde_json::Value {
+    let text = fs::read_to_string(path).expect("written file");
+    serde_json::from_str(&text).expect("valid JSON")
+  }
+
+  #[test]
+  fn write_sets_keys_and_keeps_the_rest() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let target = dir.path().join("settings.json");
+    fs::write(&target, r#"{"tui":"full","hooks":{"old":1}}"#).expect("seed");
+    let files = [hooks_file(&target)];
+    let rows = write(&files, false);
+    assert!(matches!(rows[0].outcome, Outcome::Written), "{:?}", rows[0]);
+    let json = read(&target);
+    assert_eq!(json["tui"], "full");
+    assert_eq!(json["hooks"], serde_json::json!({ "Stop": [] }));
+    let rows = write(&files, false);
+    assert!(matches!(rows[0].outcome, Outcome::Ok), "{:?}", rows[0]);
+  }
+
+  #[test]
+  fn write_creates_a_missing_file() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let target = dir.path().join("new/hooks.json");
+    let files = [hooks_file(&target)];
+    let rows = write(&files, true);
+    assert!(matches!(rows[0].outcome, Outcome::Would("write")));
+    assert!(!target.exists(), "dry run wrote {}", target.display());
+    let rows = write(&files, false);
+    assert!(matches!(rows[0].outcome, Outcome::Written), "{:?}", rows[0]);
+    assert_eq!(read(&target)["hooks"]["Stop"], serde_json::json!([]));
+  }
+
+  #[test]
+  fn write_backs_up_a_file_that_is_not_an_object() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let target = dir.path().join("settings.json");
+    fs::write(&target, "not json").expect("seed");
+    let rows = write(&[hooks_file(&target)], false);
+    assert!(matches!(rows[0].outcome, Outcome::Written), "{:?}", rows[0]);
+    let backups = fs::read_dir(dir.path())
+      .expect("list dir")
+      .filter_map(Result::ok)
+      .filter(|entry| entry.file_name().to_string_lossy().contains(".bak-"))
+      .count();
+    assert_eq!(backups, 1, "expected one backup");
+    assert!(read(&target)["hooks"].is_object(), "hooks set");
+  }
+
+  #[cfg(unix)]
+  #[test]
+  fn write_replaces_a_symlink_with_a_file() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let source = dir.path().join("repo.json");
+    fs::write(&source, r#"{"tui":"full"}"#).expect("seed");
+    let target = dir.path().join("settings.json");
+    std::os::unix::fs::symlink(&source, &target).expect("link");
+    let rows = write(&[hooks_file(&target)], false);
+    assert!(matches!(rows[0].outcome, Outcome::Written), "{:?}", rows[0]);
+    assert!(
+      !target.symlink_metadata().expect("meta").is_symlink(),
+      "file"
+    );
+    assert_eq!(read(&source), serde_json::json!({ "tui": "full" }));
+    assert_eq!(read(&target)["tui"], "full");
+  }
+}
