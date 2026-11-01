@@ -3,7 +3,6 @@
 //! This module maps each subcommand to its file in `cli/`. Each command owns
 //! its own output; `main` maps the outcome onto an exit code.
 
-mod ci;
 mod doctor;
 mod git;
 mod hook;
@@ -22,9 +21,6 @@ use thiserror;
 #[derive(clap::Parser)]
 #[command(name = "ahok", version)]
 pub enum Args {
-  /// Wait for CI and print one summary.
-  #[command(subcommand)]
-  Ci(ci::Args),
   /// Run the git hook rules; called from git's commit-msg and pre-push.
   #[command(subcommand)]
   Git(git::Args),
@@ -47,9 +43,6 @@ pub enum Status {
   Clean,
   /// The command found a problem, such as a failed doctor check: exit 1.
   Failed,
-  /// The command ran out of time and should be run again: exit 75
-  /// (`EX_TEMPFAIL`).
-  Retry,
 }
 
 /// Why a command could not run.
@@ -69,9 +62,6 @@ pub enum Error {
     /// Why reading it failed.
     source: io::Error,
   },
-  /// Reading CI checks from GitHub failed.
-  #[error(transparent)]
-  Ci(#[from] ::ci::Error),
   #[cfg(feature = "update")]
   /// Self-update failed.
   #[error(transparent)]
@@ -82,7 +72,6 @@ impl Args {
   /// Runs the chosen subcommand.
   pub fn run(self) -> Result<Status, Error> {
     match self {
-      Self::Ci(args) => Ok(args.run()?),
       Self::Doctor => Ok(doctor::run()),
       Self::Git(args) => Ok(args.run()),
       Self::Hook(args) => Ok(args.run()),
