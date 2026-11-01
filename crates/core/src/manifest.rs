@@ -12,6 +12,7 @@ use serde;
 use thiserror;
 use toml;
 
+use crate::check;
 use crate::link;
 
 /// The manifest's file name, at the root of a workspace.
@@ -45,6 +46,9 @@ pub struct Manifest {
   /// Every `[[link]]` table, in file order.
   #[serde(default)]
   pub link: Vec<link::Link>,
+  /// Every `[[check]]` table, in file order.
+  #[serde(default)]
+  pub check: Vec<check::Check>,
 }
 
 /// Loads `<repo>/ahok.toml`.
