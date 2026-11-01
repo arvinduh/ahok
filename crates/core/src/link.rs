@@ -1,9 +1,9 @@
-//! Symlinks a config repo's files into place, from its `[[link]]` tables.
+//! Puts a workspace's files into place: symlinks, and keys in JSON configs.
 //!
 //! This module owns the `[[link]]` schema, target path expansion, and the
-//! safe link step: it never overwrites a real file, moving anything in the
-//! way to `<target>.bak-<stamp>` first. Reading `ahok.toml` belongs to
-//! `manifest`; printing the rows belongs to `ahok setup`.
+//! safe write steps: it never overwrites a real file it doesn't own, moving
+//! anything in the way to `<target>.bak-<stamp>` first. Reading `ahok.toml`
+//! belongs to `manifest`; printing the rows belongs to `ahok setup`.
 
 use std::env;
 use std::fs;
@@ -14,6 +14,7 @@ use std::time;
 
 use regex;
 use serde;
+use serde_json;
 
 /// Which machine the links are for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
@@ -95,6 +96,8 @@ pub enum Outcome {
   Ok,
   /// Linked now.
   Linked,
+  /// Written now.
+  Written,
   /// Dry run: what would happen (`create`, `backup` or `relink`).
   Would(&'static str),
   /// The source is not in the repo.
@@ -188,6 +191,121 @@ impl Link {
       (To::PerOs(per_os), _) => per_os.linux.as_deref(),
     }
   }
+}
+
+/// Keys ahok owns in a JSON config file; it leaves every other key alone.
+#[derive(Debug)]
+pub struct Json {
+  /// The file, written like a link's `to`.
+  pub to: String,
+  /// Each key ahok sets, with its value.
+  pub keys: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Sets each file's keys, keeping the rest of the file; one row per file.
+///
+/// A symlink at the target is replaced by a real file holding the link's
+/// keys, so the write never lands in the link's source. A file that isn't a JSON object is moved to
+/// `<name>.bak-<unix seconds>` first.
+///
+/// # Side Effects
+///
+/// Unless `dry_run`, writes the files and creates their directories.
+#[must_use]
+pub fn write(files: &[Json], dry_run: bool) -> Vec<Row> {
+  let stamp = time::SystemTime::now()
+    .duration_since(time::UNIX_EPOCH)
+    .map_or(0, |d| d.as_secs())
+    .to_string();
+  files
+    .iter()
+    .map(|file| {
+      let target = match expand(&file.to) {
+        Ok(target) => target,
+        Err(note) => {
+          return Row {
+            outcome: Outcome::Failed,
+            target: file.to.clone(),
+            note,
+          };
+        }
+      };
+      let (outcome, note) =
+        match write_one(&target, &file.keys, dry_run, &stamp) {
+          Ok(result) => result,
+          Err(err) => (Outcome::Failed, err.to_string()),
+        };
+      Row {
+        outcome,
+        target: target.display().to_string(),
+        note,
+      }
+    })
+    .collect()
+}
+
+/// Sets `keys` in the JSON object at `target`; returns the outcome and a
+/// note.
+fn write_one(
+  target: &path::Path,
+  keys: &serde_json::Map<String, serde_json::Value>,
+  dry_run: bool,
+  stamp: &str,
+) -> io::Result<(Outcome, String)> {
+  let is_link = target.symlink_metadata().is_ok_and(|m| m.is_symlink());
+  // A link is read through, so its keys carry over into the real file.
+  let text = match fs::read_to_string(target) {
+    Ok(text) => Some(text),
+    Err(err) if err.kind() != io::ErrorKind::NotFound && !is_link => {
+      return Err(err);
+    }
+    Err(_) => None,
+  };
+  let current = text
+    .as_deref()
+    .map(serde_json::from_str::<serde_json::Value>);
+  let (mut object, invalid) = match current {
+    Some(Ok(serde_json::Value::Object(object))) => (object, false),
+    Some(_) => (serde_json::Map::new(), true),
+    None => (serde_json::Map::new(), false),
+  };
+  let before = object.clone();
+  object.extend(keys.clone());
+  if !is_link && !invalid && text.is_some() && object == before {
+    return Ok((Outcome::Ok, "up to date".to_owned()));
+  }
+  let name = target.file_name().unwrap_or_default().to_string_lossy();
+  let (action, note) = if is_link {
+    ("relink", "replaced link with file".to_owned())
+  } else if invalid {
+    ("backup", format!("saved {name}.bak-{stamp}"))
+  } else {
+    ("write", String::new())
+  };
+  if dry_run {
+    return Ok((Outcome::Would(action), note));
+  }
+  if let Some(parent) = target.parent() {
+    fs::create_dir_all(parent)?;
+  }
+  let mut json = serde_json::to_string_pretty(&object)?;
+  json.push('\n');
+  // Write beside the target first, so a failed write leaves it intact.
+  let staged = target.with_file_name(format!("{name}.ahok-{stamp}"));
+  fs::write(&staged, json)?;
+  let swapped = match action {
+    "relink" => remove_link(target),
+    "backup" => {
+      fs::rename(target, target.with_file_name(format!("{name}.bak-{stamp}")))
+    }
+    _ => Ok(()),
+  }
+  .and_then(|()| fs::rename(&staged, target));
+  if let Err(err) = swapped {
+    drop(fs::remove_file(&staged));
+    return Err(err);
+  }
+  Ok((Outcome::Written, note))
 }
 
 /// Expands a leading `~` and every `%NAME%` in a target.
@@ -404,3 +522,4 @@ fn remove_link(link: &path::Path) -> io::Result<()> {
     fs::remove_file(link)
   }
 }
+

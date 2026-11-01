@@ -71,6 +71,7 @@ fn label(outcome: &link::Outcome) -> String {
   match outcome {
     link::Outcome::Ok => "ok".to_owned(),
     link::Outcome::Linked => "linked".to_owned(),
+    link::Outcome::Written => "written".to_owned(),
     link::Outcome::Would(action) => format!("would {action}"),
     link::Outcome::Missing => "MISSING".to_owned(),
     link::Outcome::Conflict => "CONFLICT".to_owned(),
