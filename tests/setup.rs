@@ -20,14 +20,16 @@ fn setup(name: &str, links: &str) -> (path::PathBuf, path::PathBuf) {
   (repo, out)
 }
 
-/// Runs `ahok setup <repo> <args>` with `%OUT%` set; returns success and
-/// stdout.
+/// Runs `ahok setup <repo> <args>` with `%OUT%` and the home directory set
+/// to `out`; returns success and stdout.
 fn link(repo: &path::Path, out: &path::Path, args: &[&str]) -> (bool, String) {
   let output = process::Command::new(env!("CARGO_BIN_EXE_ahok"))
     .arg("setup")
     .arg(repo)
     .args(args)
     .env("OUT", out)
+    .env("HOME", out)
+    .env("USERPROFILE", out)
     .env_remove("CLAUDE_CODE_REMOTE")
     .output()
     .expect("the ahok binary runs");
@@ -178,4 +180,24 @@ to = "%OUT%/b.txt"
     &first.join("a.txt")
   ));
   assert!(points_to(&out.join("b.txt"), &second.join("a.txt")));
+}
+
+#[test]
+fn places_instructions_and_skills_for_each_harness() {
+  let agents = r#"
+[agents]
+harnesses = ["claude", "codex"]
+instructions = "a.txt"
+skills = "skills"
+"#;
+  let (repo, out) = setup("agents", agents);
+  let (ok, stdout) = link(&repo, &out, &[]);
+  assert!(ok, "{stdout}");
+  let instructions = repo.join("a.txt");
+  assert!(points_to(&out.join(".claude/CLAUDE.md"), &instructions));
+  assert!(points_to(&out.join(".codex/AGENTS.md"), &instructions));
+  let skill = repo.join("skills").join("two");
+  assert!(points_to(&out.join(".claude/skills/two"), &skill));
+  assert!(points_to(&out.join(".codex/skills/two"), &skill));
+  assert!(!out.join(".gemini").exists(), "agy is not listed");
 }

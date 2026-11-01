@@ -43,6 +43,26 @@ impl Harness {
   }
 }
 
+impl Harness {
+  /// Where the harness reads the user's instructions.
+  pub(crate) const fn instructions(self) -> &'static str {
+    match self {
+      Self::Claude => claude::INSTRUCTIONS,
+      Self::Codex => codex::INSTRUCTIONS,
+      Self::Agy => antigravity::INSTRUCTIONS,
+    }
+  }
+
+  /// The directory the harness reads skills from, one per child.
+  pub(crate) const fn skills(self) -> &'static str {
+    match self {
+      Self::Claude => claude::SKILLS,
+      Self::Codex => codex::SKILLS,
+      Self::Agy => antigravity::SKILLS,
+    }
+  }
+}
+
 impl std::str::FromStr for Harness {
   type Err = String;
 

@@ -40,7 +40,11 @@ impl Args {
         source,
       })?;
       let manifest = manifest::load(&repo)?;
-      rows.extend(link::apply(&repo, &manifest.link, platform, self.check));
+      let mut links = manifest.link;
+      if let Some(agents) = &manifest.agents {
+        links.extend(agents.links());
+      }
+      rows.extend(link::apply(&repo, &links, platform, self.check));
     }
     let labels: Vec<String> =
       rows.iter().map(|row| label(&row.outcome)).collect();

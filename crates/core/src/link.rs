@@ -180,6 +180,15 @@ pub fn apply(
 }
 
 impl Link {
+  /// Links `from` to the same `to` on every platform.
+  pub(crate) fn new(from: String, to: &str) -> Self {
+    Self {
+      from,
+      to: To::Everywhere(to.to_owned()),
+      on: None,
+    }
+  }
+
   /// The raw target for `platform`, or `None` when the link skips it.
   fn target(&self, platform: Platform) -> Option<&str> {
     if self.on.as_ref().is_some_and(|on| !on.contains(&platform)) {
