@@ -75,3 +75,39 @@ fn push_to_main_is_rejected() {
   let refs = "refs/heads/x abc refs/heads/x def\n";
   assert!(git_hook("push", &["pre-push", "origin", "url"], refs).0);
 }
+
+#[cfg(unix)]
+#[test]
+fn failed_commit_check_stops_the_commit() {
+  let repo = env::temp_dir().join("ahok-git-repo-check");
+  drop(fs::remove_dir_all(&repo));
+  fs::create_dir_all(&repo).expect("create the temp repo");
+  let manifest = "[[check]]\non = [\"commit\"]\nrun = \"false {files}\"\n";
+  fs::write(repo.join("ahok.toml"), manifest).expect("write manifest");
+  let git = |args: &[&str]| {
+    let ok = process::Command::new("git")
+      .args(args)
+      .current_dir(&repo)
+      .status()
+      .expect("git runs")
+      .success();
+    assert!(ok, "git {args:?} must succeed");
+  };
+  git(&["init", "-q"]);
+  git(&["add", "ahok.toml"]);
+  let file = message_file("check", "feat(git): add hooks\n");
+  let output = process::Command::new(env!("CARGO_BIN_EXE_ahok"))
+    .args(["hook", "-C"])
+    .arg(&repo)
+    .args(["git", "commit-msg", &file])
+    .current_dir(&repo)
+    .output()
+    .expect("the ahok binary runs");
+  let stderr = String::from_utf8_lossy(&output.stderr);
+  assert!(
+    !output.status.success(),
+    "a failed check must stop the commit"
+  );
+  assert!(stderr.contains("check failed: false"), "{stderr}");
+  assert!(stderr.contains("ahok.toml"), "the staged file is passed");
+}

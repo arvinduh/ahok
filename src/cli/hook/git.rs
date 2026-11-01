@@ -13,6 +13,8 @@ use std::io;
 use std::path;
 use std::process;
 
+use ahok_core::agents;
+use ahok_core::check;
 use ahok_core::manifest;
 use ahok_core::rules;
 
@@ -20,12 +22,18 @@ use crate::cli;
 
 /// Runs git hook `name` with git's `args`; `Failed` stops git.
 ///
-/// `commit-msg` checks the message file and the staged diff; `pre-push`
+/// `commit-msg` checks the message file and the staged diff against the
+/// rules, then runs the commit checks on the staged files; `pre-push`
 /// checks the refs git writes to stdin. Any other hook passes.
 pub fn run(workspace: &path::Path, name: &str, args: &[String]) -> cli::Status {
-  let Some(rules) = load(workspace) else {
-    return cli::Status::Clean;
+  let manifest = match manifest::load(workspace) {
+    Ok(manifest) => manifest,
+    Err(err) => {
+      eprintln!("[ahok] git hook skipped: {err}");
+      return cli::Status::Clean;
+    }
   };
+  let rules = load(workspace, manifest.agents.as_ref());
   let violations = match (name, args.first()) {
     ("commit-msg", Some(file)) => {
       let message = fs::read_to_string(file).unwrap_or_default();
@@ -52,23 +60,44 @@ pub fn run(workspace: &path::Path, name: &str, args: &[String]) -> cli::Status {
   for violation in &violations {
     eprintln!("[ahok {}] {}", violation.id, violation.reason);
   }
-  if violations.is_empty() {
+  if !violations.is_empty() {
+    return cli::Status::Failed;
+  }
+  // Checks are slow, so they run only once the rules pass.
+  let cwd = env::current_dir().unwrap_or_default();
+  let staged = (name == "commit-msg").then(|| check::staged(&cwd));
+  let failures = match staged.flatten() {
+    Some((root, files)) => {
+      check::run(&manifest.check, check::On::Commit, &root, &files)
+    }
+    None => Vec::new(),
+  };
+  for failure in &failures {
+    eprintln!(
+      "[ahok] check failed: {}\n{}",
+      failure.command, failure.output
+    );
+  }
+  if failures.is_empty() {
     cli::Status::Clean
   } else {
     cli::Status::Failed
   }
 }
 
-/// Loads the workspace's rules, or warns and returns `None` so the hook
-/// passes.
-fn load(workspace: &path::Path) -> Option<Vec<rules::Rule>> {
-  let manifest = manifest::load(workspace)
-    .inspect_err(|err| eprintln!("[ahok] git rules skipped: {err}"))
-    .ok()?;
-  let dir = manifest.agents?.rules(workspace)?;
-  rules::load(&dir)
-    .inspect_err(|err| eprintln!("[ahok] git rules skipped: {err}"))
-    .ok()
+/// Loads the workspace's rules; warns and returns none when they fail to
+/// load, so a broken setup never blocks git.
+fn load(
+  workspace: &path::Path,
+  agents: Option<&agents::Agents>,
+) -> Vec<rules::Rule> {
+  let Some(dir) = agents.and_then(|agents| agents.rules(workspace)) else {
+    return Vec::new();
+  };
+  rules::load(&dir).unwrap_or_else(|err| {
+    eprintln!("[ahok] git rules skipped: {err}");
+    Vec::new()
+  })
 }
 
 /// `git diff --cached --numstat` output, or `None` if git failed.
