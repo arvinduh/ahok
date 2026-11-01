@@ -3,7 +3,6 @@
 //! This module maps each subcommand to its file in `cli/`. Each command owns
 //! its own output; `main` maps the outcome onto an exit code.
 
-mod git;
 mod hook;
 mod setup;
 #[cfg(feature = "update")]
@@ -19,9 +18,6 @@ use thiserror;
 #[derive(clap::Parser)]
 #[command(name = "ahok", version)]
 pub enum Args {
-  /// Run the git hook rules; called from git's commit-msg and pre-push.
-  #[command(subcommand, hide = true)]
-  Git(git::Args),
   /// Answer one harness hook call: hook JSON on stdin, reply on stdout.
   #[command(hide = true)]
   Hook(hook::Args),
@@ -61,6 +57,12 @@ pub enum Error {
     /// The workspace that claimed it again.
     second: path::PathBuf,
   },
+  /// A workspace URL has no name to clone it under.
+  #[error("{url}: no repository name to clone it as ~/.<name>")]
+  NoCheckout {
+    /// The URL as given.
+    url: String,
+  },
   /// A state file exists but could not be read.
   #[error("{}: {source}", path.display())]
   Read {
@@ -79,7 +81,6 @@ impl Args {
   /// Runs the chosen subcommand.
   pub fn run(self) -> Result<Status, Error> {
     match self {
-      Self::Git(args) => Ok(args.run()),
       Self::Hook(args) => Ok(args.run()),
       Self::Setup(args) => args.run(),
       #[cfg(feature = "update")]

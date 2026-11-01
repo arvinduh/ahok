@@ -7,6 +7,7 @@
 pub mod antigravity;
 pub mod claude;
 pub mod codex;
+pub mod git;
 
 use std::path;
 
@@ -26,11 +27,13 @@ pub enum Harness {
   Codex,
   /// Google Antigravity.
   Agy,
+  /// Git, through its `commit-msg` and `pre-push` hooks.
+  Git,
 }
 
 impl Harness {
   /// Every harness, in the order they are listed to the user.
-  const ALL: [Self; 3] = [Self::Claude, Self::Codex, Self::Agy];
+  const ALL: [Self; 4] = [Self::Claude, Self::Codex, Self::Agy, Self::Git];
 
   /// The harness's name in `ahok.toml` and on the command line.
   #[must_use]
@@ -39,26 +42,30 @@ impl Harness {
       Self::Claude => "claude",
       Self::Codex => "codex",
       Self::Agy => "agy",
+      Self::Git => "git",
     }
   }
 }
 
 impl Harness {
-  /// Where the harness reads the user's instructions.
-  pub(crate) const fn instructions(self) -> &'static str {
+  /// Where the harness reads the user's instructions; git reads none.
+  pub(crate) const fn instructions(self) -> Option<&'static str> {
     match self {
-      Self::Claude => claude::INSTRUCTIONS,
-      Self::Codex => codex::INSTRUCTIONS,
-      Self::Agy => antigravity::INSTRUCTIONS,
+      Self::Claude => Some(claude::INSTRUCTIONS),
+      Self::Codex => Some(codex::INSTRUCTIONS),
+      Self::Agy => Some(antigravity::INSTRUCTIONS),
+      Self::Git => None,
     }
   }
 
-  /// The directory the harness reads skills from, one per child.
-  pub(crate) const fn skills(self) -> &'static str {
+  /// The directory the harness reads skills from, one per child; git reads
+  /// none.
+  pub(crate) const fn skills(self) -> Option<&'static str> {
     match self {
-      Self::Claude => claude::SKILLS,
-      Self::Codex => codex::SKILLS,
-      Self::Agy => antigravity::SKILLS,
+      Self::Claude => Some(claude::SKILLS),
+      Self::Codex => Some(codex::SKILLS),
+      Self::Agy => Some(antigravity::SKILLS),
+      Self::Git => None,
     }
   }
 }
@@ -70,7 +77,7 @@ impl std::str::FromStr for Harness {
     Self::ALL
       .into_iter()
       .find(|harness| harness.name() == name)
-      .ok_or_else(|| format!("expected claude, codex or agy, got {name}"))
+      .ok_or_else(|| format!("expected claude, codex, agy or git, got {name}"))
   }
 }
 

@@ -98,6 +98,8 @@ pub enum Outcome {
   Linked,
   /// Written now.
   Written,
+  /// A workspace cloned or fast-forwarded now.
+  Synced,
   /// Dry run: what would happen (`create`, `backup` or `relink`).
   Would(&'static str),
   /// The source is not in the repo.
@@ -317,11 +319,80 @@ fn write_one(
   Ok((Outcome::Written, note))
 }
 
+/// An executable file ahok owns whole, such as a generated git hook.
+#[derive(Debug)]
+pub struct Script {
+  /// The file, written like a link's `to`.
+  pub to: String,
+  /// Its full contents.
+  pub text: String,
+}
+
+/// Writes each script and makes it executable; one row per script.
+///
+/// ahok owns these files, so a stale one is replaced without a backup.
+///
+/// # Side Effects
+///
+/// Unless `dry_run`, writes the files and creates their directories.
+#[must_use]
+pub fn write_scripts(scripts: &[Script], dry_run: bool) -> Vec<Row> {
+  scripts
+    .iter()
+    .map(|script| {
+      let (outcome, target, note) = match expand(&script.to) {
+        Ok(target) => {
+          let (outcome, note) =
+            match write_script(&target, &script.text, dry_run) {
+              Ok(outcome) => (outcome, String::new()),
+              Err(err) => (Outcome::Failed, err.to_string()),
+            };
+          (outcome, target.display().to_string(), note)
+        }
+        Err(note) => (Outcome::Failed, script.to.clone(), note),
+      };
+      Row {
+        outcome,
+        target,
+        note,
+      }
+    })
+    .collect()
+}
+
+/// Writes `text` to `target` as an executable, unless it already holds it.
+fn write_script(
+  target: &path::Path,
+  text: &str,
+  dry_run: bool,
+) -> io::Result<Outcome> {
+  let is_file = target.symlink_metadata().is_ok_and(|m| m.is_file());
+  if is_file && fs::read_to_string(target).is_ok_and(|old| old == text) {
+    return Ok(Outcome::Ok);
+  }
+  if dry_run {
+    return Ok(Outcome::Would("write"));
+  }
+  if let Some(parent) = target.parent() {
+    fs::create_dir_all(parent)?;
+  }
+  if target.symlink_metadata().is_ok() && !is_file {
+    remove_link(target)?;
+  }
+  fs::write(target, text)?;
+  #[cfg(unix)]
+  {
+    let mode = std::os::unix::fs::PermissionsExt::from_mode(0o755);
+    fs::set_permissions(target, mode)?;
+  }
+  Ok(Outcome::Written)
+}
+
 /// Expands a leading `~` and every `%NAME%` in a target.
 ///
 /// `%DOCUMENTS%` falls back to the Windows Documents folder, following
 /// folder redirection. Errors name the variable that is not set.
-fn expand(raw: &str) -> Result<path::PathBuf, String> {
+pub(crate) fn expand(raw: &str) -> Result<path::PathBuf, String> {
   let pattern = regex::Regex::new(r"%(\w+)%").expect("valid regex");
   let mut missing = None;
   let expanded = pattern.replace_all(raw, |caps: &regex::Captures<'_>| {

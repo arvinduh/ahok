@@ -51,6 +51,8 @@ pub enum On {
   /// When the agent ends its turn: every file changed since the branch's
   /// base, committed or not.
   Stop,
+  /// Before git records a commit: the staged files.
+  Commit,
 }
 
 /// A check that failed, with the end of its output.
@@ -118,6 +120,23 @@ pub fn changed_since_base(
     .chain(untracked.lines())
     .map(|file| root.join(file))
     .collect();
+  Some((root, files))
+}
+
+/// The repo root of `cwd` and the files staged for commit, deleted files
+/// aside. Returns `None` outside a git repository.
+///
+/// # Side Effects
+///
+/// Runs `git`.
+#[must_use]
+pub fn staged(cwd: &path::Path) -> Option<(path::PathBuf, Vec<path::PathBuf>)> {
+  let root = path::PathBuf::from(git(cwd, &["rev-parse", "--show-toplevel"])?);
+  let staged = git(
+    &root,
+    &["diff", "--cached", "--name-only", "--diff-filter=d"],
+  )?;
+  let files = staged.lines().map(|file| root.join(file)).collect();
   Some((root, files))
 }
 
@@ -275,11 +294,15 @@ mod tests {
       .map(|file| file.strip_prefix(&top).expect("under root"))
       .collect();
     assert_eq!(names, [path::Path::new("a.txt"), path::Path::new("b.txt")]);
+    run_git(&["add", "b.txt"]);
+    let (top, staged) = staged(root).expect("a repo");
+    assert_eq!(staged, [top.join("b.txt")], "only the staged file");
   }
 
   #[test]
   fn nothing_changed_outside_a_git_repo() {
     let dir = tempfile::tempdir().expect("create temp dir");
     assert!(changed_since_base(dir.path()).is_none());
+    assert!(staged(dir.path()).is_none());
   }
 }

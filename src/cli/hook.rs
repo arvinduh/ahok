@@ -1,9 +1,12 @@
 //! `ahok hook -C <workspace> <harness> <event>`: answer one hook call.
 //!
-//! This module owns the hook process contract: read the payload from stdin,
-//! always write a JSON reply to stdout, and end `Clean` so the process exits
-//! 0. Any failure is logged to `errors.log` and the call is allowed (fail
-//! open). Parsing, rules, and replies come from `ahok_core`.
+//! This module owns the agent hook process contract: read the payload from
+//! stdin, always write a JSON reply to stdout, and end `Clean` so the
+//! process exits 0. Any failure is logged to `errors.log` and the call is
+//! allowed (fail open). Git's hooks follow git's contract instead, in `git`.
+//! Parsing, rules, and replies come from `ahok_core`.
+
+mod git;
 
 use std::env;
 use std::io;
@@ -29,10 +32,13 @@ pub struct Args {
   /// Workspace whose `ahok.toml` holds the rules and checks.
   #[arg(short = 'C', long)]
   workspace: path::PathBuf,
-  /// Harness that fired the hook: claude, codex or agy.
+  /// Harness that fired the hook: claude, codex, agy or git.
   harness: harness::Harness,
-  /// Hook event name, such as `PreToolUse`.
+  /// Hook event name, such as `PreToolUse` or `commit-msg`.
   event: String,
+  /// What git passes its hook, such as the message file.
+  #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+  passed: Vec<String>,
 }
 
 /// Why a hook call failed open.
@@ -56,8 +62,12 @@ enum Error {
 }
 
 impl Args {
-  /// Answers the hook call on stdout. Always `Clean`: hooks fail open.
+  /// Answers the hook call on stdout. Always `Clean` for agents, whose
+  /// hooks fail open; `Failed` for git when a rule is broken.
   pub fn run(self) -> cli::Status {
+    if self.harness == harness::Harness::Git {
+      return git::run(&self.workspace, &self.event, &self.passed);
+    }
     let unix_ms = time::SystemTime::now()
       .duration_since(time::UNIX_EPOCH)
       .map_or(0, |since| u64::try_from(since.as_millis()).unwrap_or(0));
@@ -114,6 +124,8 @@ impl Args {
           harness::antigravity::respond,
           harness::antigravity::feedback,
         ),
+        // `run` hands git's hooks to `git::run`.
+        harness::Harness::Git => return Ok("{}".to_owned()),
       };
     let event = parse(&self.event, &input)?;
     let manifest = manifest::load(&self.workspace)?;
