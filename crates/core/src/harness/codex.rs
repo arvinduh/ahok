@@ -6,12 +6,12 @@
 
 use std::path;
 
-use event;
-use rules;
 use serde;
 use serde_json;
 
-use crate::claude;
+use crate::event;
+use crate::harness::claude;
+use crate::rules;
 
 /// The fields of a Codex hook payload that rules read.
 #[derive(serde::Deserialize)]
@@ -43,14 +43,14 @@ struct ToolInput {
 ///
 /// # Errors
 ///
-/// `crate::Error::Json` for a malformed payload, and
-/// `crate::Error::UnknownEvent` for an unsupported `event_name`.
+/// `crate::harness::Error::Json` for a malformed payload, and
+/// `crate::harness::Error::UnknownEvent` for an unsupported `event_name`.
 pub fn parse(
   event_name: &str,
   json: &str,
-) -> Result<event::Event, crate::Error> {
+) -> Result<event::Event, crate::harness::Error> {
   let payload: Payload = serde_json::from_str(json)?;
-  let kind = crate::kind(
+  let kind = crate::harness::kind(
     event_name,
     || tool(payload.tool_name, payload.tool_input.command),
     payload.stop_hook_active,

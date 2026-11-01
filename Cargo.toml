@@ -33,13 +33,8 @@ redundant_clone = "warn"
 axoupdater = { version = "0.10.2", default-features = false, features = [
   "github_releases",
 ] }
-dispatch = { path = "crates/dispatch", package = "ahok-dispatch" }
-event = { path = "crates/event", package = "ahok-event" }
-harness = { path = "crates/harness", package = "ahok-harness" }
-link = { path = "crates/link", package = "ahok-link" }
-rules = { path = "crates/rules", package = "ahok-rules" }
+ahok-core = { path = "crates/core" }
 semver = "1"
-state = { path = "crates/state", package = "ahok-state" }
 tempfile = "3"
 tokio = { version = "1", features = ["rt", "net", "time"] }
 
@@ -77,15 +72,10 @@ default = ["update"]
 update = ["dep:axoupdater", "dep:semver", "dep:tempfile", "dep:tokio"]
 
 [dependencies]
+ahok-core.workspace = true
 axoupdater = { workspace = true, optional = true }
 clap.workspace = true
-dispatch.workspace = true
-event.workspace = true
-harness.workspace = true
-link.workspace = true
-rules.workspace = true
 semver = { workspace = true, optional = true }
-state.workspace = true
 tempfile = { workspace = true, optional = true }
 thiserror.workspace = true
 tokio = { workspace = true, optional = true }

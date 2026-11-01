@@ -1,11 +1,9 @@
 //! Symlinks a config repo's files into place, from its `links.toml`.
 //!
-//! This crate owns the `links.toml` schema, target path expansion, and the
+//! This module owns the `links.toml` schema, target path expansion, and the
 //! safe link step: it never overwrites a real file, moving anything in the
 //! way to `<target>.bak-<stamp>` first. It returns one row per link as data;
 //! printing them belongs to `ahok link`.
-
-#![deny(clippy::print_stdout, clippy::print_stderr)]
 
 use std::env;
 use std::fs;

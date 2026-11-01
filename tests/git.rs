@@ -14,7 +14,7 @@ fn git_hook(args: &[&str], stdin: &str) -> (bool, String) {
   let mut child = process::Command::new(env!("CARGO_BIN_EXE_ahok"))
     .arg("git")
     .args(args)
-    .env("AHOK_CONFIG_DIR", root.join("crates/rules/tests/fixtures"))
+    .env("AHOK_CONFIG_DIR", root.join("crates/core/tests/fixtures"))
     .stdin(process::Stdio::piped())
     .stderr(process::Stdio::piped())
     .spawn()

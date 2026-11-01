@@ -29,7 +29,7 @@ pub struct Change<'a> {
 /// `amend!` commits skip the subject rules: git writes those subjects.
 #[must_use]
 pub fn commit_msg<'a>(
-  rules: &'a [crate::Rule],
+  rules: &'a [crate::rules::Rule],
   message: &str,
   changes: Option<&[Change]>,
   var_set: &dyn Fn(&str) -> bool,
@@ -41,7 +41,7 @@ pub fn commit_msg<'a>(
   let generated = ["Merge ", "Revert ", "fixup! ", "squash! ", "amend! "]
     .iter()
     .any(|prefix| subject.starts_with(prefix));
-  hook_rules(rules, crate::GitHook::CommitMsg)
+  hook_rules(rules, crate::rules::GitHook::CommitMsg)
     .filter(|rule| {
       !rule
         .allow_tag
@@ -68,10 +68,10 @@ pub fn commit_msg<'a>(
 /// read.
 #[must_use]
 pub fn pre_push<'a>(
-  rules: &'a [crate::Rule],
+  rules: &'a [crate::rules::Rule],
   refs: Option<&[&str]>,
 ) -> Vec<Violation<'a>> {
-  hook_rules(rules, crate::GitHook::PrePush)
+  hook_rules(rules, crate::rules::GitHook::PrePush)
     .filter(|rule| {
       refs.is_some_and(|refs| {
         refs.iter().any(|remote| {
@@ -86,16 +86,17 @@ pub fn pre_push<'a>(
 
 /// The `GitHook` rules that run in `hook`.
 fn hook_rules(
-  rules: &[crate::Rule],
-  hook: crate::GitHook,
-) -> impl Iterator<Item = &crate::Rule> {
+  rules: &[crate::rules::Rule],
+  hook: crate::rules::GitHook,
+) -> impl Iterator<Item = &crate::rules::Rule> {
   rules.iter().filter(move |rule| {
-    matches!(rule.event, crate::Event::GitHook) && rule.hook == Some(hook)
+    matches!(rule.event, crate::rules::Event::GitHook)
+      && rule.hook == Some(hook)
   })
 }
 
 /// Lines `changes` add and delete, leaving out `rule`'s excluded paths.
-fn counted_lines(rule: &crate::Rule, changes: &[Change]) -> u32 {
+fn counted_lines(rule: &crate::rules::Rule, changes: &[Change]) -> u32 {
   changes
     .iter()
     .filter(|change| {
@@ -109,7 +110,7 @@ fn counted_lines(rule: &crate::Rule, changes: &[Change]) -> u32 {
 }
 
 /// Reports `rule` as broken.
-fn violation(rule: &crate::Rule) -> Violation<'_> {
+fn violation(rule: &crate::rules::Rule) -> Violation<'_> {
   Violation {
     id: &rule.id,
     reason: rule.reason.as_deref().unwrap_or(&rule.id),
@@ -123,8 +124,9 @@ mod tests {
   /// No violations, for `assert_eq!` against a list of ids.
   const NONE: [&str; 0] = [];
 
-  fn rules() -> Vec<crate::Rule> {
-    crate::parse(include_str!("../tests/fixtures/rules/git.toml")).unwrap()
+  fn rules() -> Vec<crate::rules::Rule> {
+    crate::rules::parse(include_str!("../../tests/fixtures/rules/git.toml"))
+      .unwrap()
   }
 
   fn ids<'a>(violations: &[Violation<'a>]) -> Vec<&'a str> {

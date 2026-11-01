@@ -5,11 +5,12 @@
 
 use std::path;
 
-use dispatch;
-use event;
-use rules;
 use serde;
 use serde_json;
+
+use crate::dispatch;
+use crate::event;
+use crate::rules;
 
 /// The fields of a Claude Code hook payload that rules read.
 #[derive(serde::Deserialize)]
@@ -45,14 +46,14 @@ struct ToolInput {
 ///
 /// # Errors
 ///
-/// `crate::Error::Json` for a malformed payload, and
-/// `crate::Error::UnknownEvent` for an unsupported `event_name`.
+/// `crate::harness::Error::Json` for a malformed payload, and
+/// `crate::harness::Error::UnknownEvent` for an unsupported `event_name`.
 pub fn parse(
   event_name: &str,
   json: &str,
-) -> Result<event::Event, crate::Error> {
+) -> Result<event::Event, crate::harness::Error> {
   let payload: Payload = serde_json::from_str(json)?;
-  let kind = crate::kind(
+  let kind = crate::harness::kind(
     event_name,
     || tool(payload.tool_name, payload.tool_input),
     payload.stop_hook_active,
@@ -246,12 +247,12 @@ mod tests {
   #[test]
   fn unknown_event_is_an_error() {
     let err = parse("Notification", r#"{"session_id":"s1"}"#).unwrap_err();
-    assert!(matches!(err, crate::Error::UnknownEvent { .. }));
+    assert!(matches!(err, crate::harness::Error::UnknownEvent { .. }));
   }
 
   #[test]
   fn malformed_payload_is_an_error() {
     let err = parse("Stop", "{}").unwrap_err();
-    assert!(matches!(err, crate::Error::Json(_)));
+    assert!(matches!(err, crate::harness::Error::Json(_)));
   }
 }

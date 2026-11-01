@@ -44,7 +44,7 @@ pub enum Status {
 pub enum Error {
   /// `links.toml` could not be read or parsed.
   #[error(transparent)]
-  Link(#[from] ::link::Error),
+  Link(#[from] ahok_core::link::Error),
   /// A state file exists but could not be read.
   #[error("{}: {source}", path.display())]
   Read {

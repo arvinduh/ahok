@@ -1,12 +1,12 @@
 //! `ahok link`: symlink a config repo's files into place.
 //!
-//! This module prints one row per link from the `link` crate and
+//! This module prints one row per link from `ahok_core::link` and
 //! reports `Failed` if any link did not resolve.
 
 use std::path;
 
+use ahok_core::link;
 use clap;
-use link;
 
 use crate::cli;
 

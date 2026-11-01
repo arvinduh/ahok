@@ -8,10 +8,9 @@ use std::fs;
 use std::path;
 use std::slice;
 
-use event;
-use state::session;
-
-use crate::shell;
+use crate::event;
+use crate::rules::shell;
+use crate::state::session;
 
 /// The rule that decided an event.
 #[derive(Debug)]
@@ -46,7 +45,7 @@ pub struct Env<'a> {
 /// without a `decision` never win.
 #[must_use]
 pub fn evaluate<'a>(
-  rules: &'a [crate::Rule],
+  rules: &'a [crate::rules::Rule],
   event: &event::Event,
   env: &Env,
 ) -> Option<Match<'a>> {
@@ -83,13 +82,13 @@ pub fn evaluate<'a>(
 
 /// Whether every condition `rule` sets holds for this tool call.
 fn applies(
-  rule: &crate::Rule,
+  rule: &crate::rules::Rule,
   tool: &event::Tool,
   argvs: &[Vec<String>],
   cwd: &path::Path,
   env: &Env,
 ) -> bool {
-  matches!(rule.event, crate::Event::PreToolUse)
+  matches!(rule.event, crate::rules::Event::PreToolUse)
     && rule.os.as_deref().is_none_or(|os| os == env.os)
     && rule
       .skip_if_env
@@ -136,10 +135,10 @@ fn reads_large_file(argv: &[String], cwd: &path::Path, max: u64) -> bool {
 }
 
 /// The tool names a rule lists.
-fn names(tools: &crate::Tools) -> &[String] {
+fn names(tools: &crate::rules::Tools) -> &[String] {
   match tools {
-    crate::Tools::One(name) => slice::from_ref(name),
-    crate::Tools::Many(names) => names,
+    crate::rules::Tools::One(name) => slice::from_ref(name),
+    crate::rules::Tools::Many(names) => names,
   }
 }
 
@@ -172,9 +171,9 @@ fn has_words(argv: &[String], pattern: &str) -> bool {
 mod tests {
   use super::*;
 
-  fn fixture_rules() -> Vec<crate::Rule> {
+  fn fixture_rules() -> Vec<crate::rules::Rule> {
     let dir = path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    crate::load(&dir.join("tests/fixtures/rules")).unwrap()
+    crate::rules::load(&dir.join("tests/fixtures/rules")).unwrap()
   }
 
   fn shell(command: &str) -> event::Event {
@@ -241,14 +240,14 @@ mod tests {
   fn bad_regex_fails_to_parse() {
     let text =
       "[[rule]]\nid = \"x\"\nevent = \"PreToolUse\"\nmatch_pattern = '('\n";
-    assert!(crate::parse(text).is_err());
+    assert!(crate::rules::parse(text).is_err());
   }
 
   #[test]
   fn file_globs_match_edited_paths() {
     let text = "[[rule]]\nid = \"x\"\nevent = \"PreToolUse\"\n\
       match_files = [\"*.rs\"]\ndecision = \"deny\"\n";
-    let rules = crate::parse(text).unwrap();
+    let rules = crate::rules::parse(text).unwrap();
     let edit = |path: &str| event::Event {
       session_id: "s1".to_owned(),
       cwd: path::PathBuf::new(),
