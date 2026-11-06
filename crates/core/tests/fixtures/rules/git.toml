@@ -30,4 +30,5 @@ id = "no-push-default-branch"
 event = "GitHook"
 hook = "pre-push"
 protected_branches = ["main", "master"]
+only_if_env = ["CLAUDECODE", "CODEX_SANDBOX"]
 reason = "AGENTS.md §9: never push to the default branch."
