@@ -41,7 +41,7 @@ pub fn commit_msg<'a>(
   let generated = ["Merge ", "Revert ", "fixup! ", "squash! ", "amend! "]
     .iter()
     .any(|prefix| subject.starts_with(prefix));
-  hook_rules(rules, crate::rules::GitHook::CommitMsg)
+  hook_rules(rules, crate::rules::GitHook::CommitMsg, var_set)
     .filter(|rule| {
       !rule
         .allow_tag
@@ -70,8 +70,9 @@ pub fn commit_msg<'a>(
 pub fn pre_push<'a>(
   rules: &'a [crate::rules::Rule],
   refs: Option<&[&str]>,
+  var_set: &dyn Fn(&str) -> bool,
 ) -> Vec<Violation<'a>> {
-  hook_rules(rules, crate::rules::GitHook::PrePush)
+  hook_rules(rules, crate::rules::GitHook::PrePush, var_set)
     .filter(|rule| {
       refs.is_some_and(|refs| {
         refs.iter().any(|remote| {
@@ -84,14 +85,18 @@ pub fn pre_push<'a>(
     .collect()
 }
 
-/// The `GitHook` rules that run in `hook`.
-fn hook_rules(
-  rules: &[crate::rules::Rule],
+/// The `GitHook` rules that run in `hook`, leaving out those whose
+/// `only_if_env` names no set variable.
+fn hook_rules<'r>(
+  rules: &'r [crate::rules::Rule],
   hook: crate::rules::GitHook,
-) -> impl Iterator<Item = &crate::rules::Rule> {
+  var_set: &dyn Fn(&str) -> bool,
+) -> impl Iterator<Item = &'r crate::rules::Rule> {
   rules.iter().filter(move |rule| {
     matches!(rule.event, crate::rules::Event::GitHook)
       && rule.hook == Some(hook)
+      && (rule.only_if_env.is_empty()
+        || rule.only_if_env.iter().any(|var| var_set(var)))
   })
 }
 
@@ -179,17 +184,30 @@ mod tests {
     let rules = rules();
     let found = commit_msg(&rules, "fix(a): add b", None, &|_| false);
     assert!(found.is_empty(), "budget fails open");
-    assert_eq!(ids(&pre_push(&rules, None)), NONE);
+    assert_eq!(ids(&pre_push(&rules, None, &|_| true)), NONE);
   }
 
   #[test]
   fn push_to_a_protected_branch_is_reported() {
     let rules = rules();
-    let found = pre_push(&rules, Some(&["refs/heads/main"]));
+    let found = pre_push(&rules, Some(&["refs/heads/main"]), &|_| true);
     assert_eq!(
       found[0].reason,
       "AGENTS.md §9: never push to the default branch."
     );
-    assert_eq!(ids(&pre_push(&rules, Some(&["refs/heads/feat-x"]))), NONE);
+    let other = pre_push(&rules, Some(&["refs/heads/feat-x"]), &|_| true);
+    assert_eq!(ids(&other), NONE);
+  }
+
+  #[test]
+  fn only_if_env_rule_needs_one_of_its_variables() {
+    let rules = crate::rules::parse(
+      "[[rule]]\nid = \"x\"\nevent = \"GitHook\"\nhook = \"pre-push\"\n\
+       protected_branches = [\"main\"]\nonly_if_env = [\"A\", \"B\"]\n",
+    )
+    .unwrap();
+    let main = Some(&["refs/heads/main"][..]);
+    assert_eq!(ids(&pre_push(&rules, main, &|_| false)), NONE);
+    assert_eq!(ids(&pre_push(&rules, main, &|var| var == "B")), ["x"]);
   }
 }
