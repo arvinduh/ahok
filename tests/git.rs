@@ -99,6 +99,42 @@ fn user_push_to_main_passes() {
   assert!(passed, "the user's own push must go through: {stderr}");
 }
 
+#[test]
+fn only_the_first_commit_skips_the_diff_budget() {
+  let root = path::Path::new(env!("CARGO_MANIFEST_DIR"));
+  let repo = env::temp_dir().join("ahok-git-repo-first");
+  drop(fs::remove_dir_all(&repo));
+  fs::create_dir_all(&repo).expect("create the temp repo");
+  let git = |args: &[&str]| {
+    let ok = process::Command::new("git")
+      .args(["-c", "user.name=t", "-c", "user.email=t@t"])
+      .args(args)
+      .current_dir(&repo)
+      .status()
+      .expect("git runs")
+      .success();
+    assert!(ok, "git {args:?} must succeed");
+  };
+  let file = message_file("first", "feat(git): import\n");
+  let passes = |name: &str| {
+    fs::write(repo.join(name), "x\n".repeat(60)).expect("write a file");
+    git(&["add", name]);
+    process::Command::new(env!("CARGO_BIN_EXE_ahok"))
+      .args(["hook", "-C"])
+      .arg(root.join("crates/core/tests/fixtures"))
+      .args(["git", "commit-msg", &file])
+      .current_dir(&repo)
+      .output()
+      .expect("the ahok binary runs")
+      .status
+      .success()
+  };
+  git(&["init", "-q"]);
+  assert!(passes("a.txt"), "a first commit may exceed the budget");
+  git(&["commit", "-q", "--no-verify", "-m", "feat(git): import"]);
+  assert!(!passes("b.txt"), "a later commit may not");
+}
+
 #[cfg(unix)]
 #[test]
 fn failed_commit_check_stops_the_commit() {
