@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "ahok"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "ahok-core",
  "axoupdater",
@@ -27,7 +27,7 @@ dependencies = [
 
 [[package]]
 name = "ahok-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "globset",
  "regex",
