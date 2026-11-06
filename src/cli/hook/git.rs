@@ -38,7 +38,8 @@ pub fn run(workspace: &path::Path, name: &str, args: &[String]) -> cli::Status {
   let violations = match (name, args.first()) {
     ("commit-msg", Some(file)) => {
       let message = fs::read_to_string(file).unwrap_or_default();
-      let numstat = staged_numstat();
+      // A first commit imports what exists, so it skips the diff budget.
+      let numstat = has_head().then(staged_numstat).flatten();
       let changes = numstat.as_deref().map(changes);
       rules::commit_msg(&rules, &message, changes.as_deref(), &var_set)
     }
@@ -98,6 +99,15 @@ fn load(
     eprintln!("[ahok] git rules skipped: {err}");
     Vec::new()
   })
+}
+
+/// Whether `HEAD` names a commit; false before a repository's first.
+fn has_head() -> bool {
+  process::Command::new("git")
+    .args(["rev-parse", "--verify", "--quiet", "HEAD"])
+    .stdout(process::Stdio::null())
+    .status()
+    .is_ok_and(|status| status.success())
 }
 
 /// `git diff --cached --numstat` output, or `None` if git failed.
