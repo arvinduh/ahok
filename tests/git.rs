@@ -10,7 +10,15 @@ use std::process;
 /// Runs `ahok hook git <args>` with fixture rules and `stdin` in an empty git
 /// repo named after `name`, so this checkout's staged changes can't trip the diff budget;
 /// returns whether it passed and its stderr.
-fn git_hook(name: &str, args: &[&str], stdin: &str) -> (bool, String) {
+///
+/// `agent` sets `CLAUDECODE` as an agent's shell does; otherwise it is
+/// cleared, like the user's own terminal.
+fn git_hook(
+  name: &str,
+  args: &[&str],
+  stdin: &str,
+  agent: bool,
+) -> (bool, String) {
   let root = path::Path::new(env!("CARGO_MANIFEST_DIR"));
   let repo = env::temp_dir().join(format!("ahok-git-repo-{name}"));
   drop(fs::remove_dir_all(&repo));
@@ -21,7 +29,12 @@ fn git_hook(name: &str, args: &[&str], stdin: &str) -> (bool, String) {
     .status()
     .expect("git runs");
   assert!(init.success(), "git init must succeed");
-  let mut child = process::Command::new(env!("CARGO_BIN_EXE_ahok"))
+  let mut command = process::Command::new(env!("CARGO_BIN_EXE_ahok"));
+  command.env_remove("CLAUDECODE").env_remove("CODEX_SANDBOX");
+  if agent {
+    command.env("CLAUDECODE", "1");
+  }
+  let mut child = command
     .args(["hook", "-C"])
     .arg(root.join("crates/core/tests/fixtures"))
     .arg("git")
@@ -51,7 +64,7 @@ fn message_file(name: &str, message: &str) -> String {
 #[test]
 fn bad_commit_message_is_rejected() {
   let file = message_file("bad", "Fixed stuff.\n");
-  let (passed, stderr) = git_hook("bad", &["commit-msg", &file], "");
+  let (passed, stderr) = git_hook("bad", &["commit-msg", &file], "", false);
   assert!(!passed, "a bad subject must stop the commit");
   assert!(
     stderr.contains("[ahok conventional-commit-msg]"),
@@ -62,18 +75,28 @@ fn bad_commit_message_is_rejected() {
 #[test]
 fn good_commit_message_passes() {
   let file = message_file("good", "feat(git): add hooks\n");
-  let (passed, stderr) = git_hook("good", &["commit-msg", &file], "");
+  let (passed, stderr) = git_hook("good", &["commit-msg", &file], "", false);
   assert!(passed, "{stderr}");
 }
 
+/// The args git passes `pre-push`.
+const PRE_PUSH: [&str; 3] = ["pre-push", "origin", "url"];
+
 #[test]
-fn push_to_main_is_rejected() {
+fn agent_push_to_main_is_rejected() {
   let refs = "refs/heads/x abc refs/heads/main def\n";
-  let (passed, stderr) = git_hook("push", &["pre-push", "origin", "url"], refs);
-  assert!(!passed, "pushing to main must stop the push");
+  let (passed, stderr) = git_hook("push", &PRE_PUSH, refs, true);
+  assert!(!passed, "an agent pushing to main must stop the push");
   assert!(stderr.contains("[ahok no-push-default-branch]"), "{stderr}");
   let refs = "refs/heads/x abc refs/heads/x def\n";
-  assert!(git_hook("push", &["pre-push", "origin", "url"], refs).0);
+  assert!(git_hook("push", &PRE_PUSH, refs, true).0);
+}
+
+#[test]
+fn user_push_to_main_passes() {
+  let refs = "refs/heads/main abc refs/heads/main def\n";
+  let (passed, stderr) = git_hook("user-push", &PRE_PUSH, refs, false);
+  assert!(passed, "the user's own push must go through: {stderr}");
 }
 
 #[cfg(unix)]
