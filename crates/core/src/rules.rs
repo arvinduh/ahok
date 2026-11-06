@@ -91,6 +91,11 @@ pub struct Rule {
   allow_env: Option<String>,
   /// Skip the rule while this variable is set.
   skip_if_env: Option<String>,
+  /// Check a `GitHook` rule only while one of these variables is set, such
+  /// as an agent's `CLAUDECODE`, so it spares the user's own terminal;
+  /// always when empty.
+  #[serde(default)]
+  only_if_env: Vec<String>,
   /// Match only when an argument names a larger file.
   max_file_bytes: Option<u64>,
   /// Branches a push may not target.

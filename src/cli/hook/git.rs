@@ -34,12 +34,12 @@ pub fn run(workspace: &path::Path, name: &str, args: &[String]) -> cli::Status {
     }
   };
   let rules = load(workspace, manifest.agents.as_ref());
+  let var_set = |name: &str| env::var_os(name).is_some();
   let violations = match (name, args.first()) {
     ("commit-msg", Some(file)) => {
       let message = fs::read_to_string(file).unwrap_or_default();
       let numstat = staged_numstat();
       let changes = numstat.as_deref().map(changes);
-      let var_set = |name: &str| env::var_os(name).is_some();
       rules::commit_msg(&rules, &message, changes.as_deref(), &var_set)
     }
     ("pre-push", _) => {
@@ -50,7 +50,7 @@ pub fn run(workspace: &path::Path, name: &str, args: &[String]) -> cli::Status {
           .filter_map(|line| line.split_whitespace().nth(2))
           .collect()
       });
-      rules::pre_push(&rules, refs.as_deref())
+      rules::pre_push(&rules, refs.as_deref(), &var_set)
     }
     _ => {
       eprintln!("[ahok] git hook `{name}` has no rules; skipped");

@@ -112,7 +112,9 @@ With `"git"` in `harnesses`, `setup` writes `commit-msg` and `pre-push` hooks to
 Each runs `ahok hook -C <workspace> git <hook>`, then the repository's own hook.
 A broken `GitHook` rule or a failed commit check prints its reason and stops
 git; a missing ahok or rules that fail to load never block it. The diff budget
-counts added plus deleted lines of the staged diff.
+counts added plus deleted lines of the staged diff. A rule with `only_if_env`
+runs only while one of those variables is set, such as an agent's `CLAUDECODE`,
+so it can stop an agent's push without stopping yours.
 
 State lives in `%LOCALAPPDATA%\ahok` on Windows and `~/.local/state/ahok`
 elsewhere: `errors.log` and `sessions/`.
